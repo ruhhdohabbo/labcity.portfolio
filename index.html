@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Ruben Bonon | Lab City 3D</title>
+    <meta
+      name="description"
+      content="Portfólio interativo em Three.js inspirado em Lab City 3D, com vídeos integrados aos prédios."
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <div id="app">
+      <canvas class="scene"></canvas>
+
+      <div class="container-fluid fixed-top header disable-selection">
+        <div class="row">
+          <div class="col spacer"></div>
+          <div class="col-md-6">
+            <div class="header-content">
+              <h1><strong>Lab City 3D</strong></h1>
+              <p class="small">– Back to the red –</p>
+            </div>
+          </div>
+          <div class="col spacer"></div>
+        </div>
+      </div>
+
+      <div class="hint disable-selection">
+        <span class="hint-key">Move</span>
+        <span>inclina a cena</span>
+        <span class="hint-key">Click</span>
+        <span>abre o case</span>
+      </div>
+
+      <div class="project-label disable-selection" aria-hidden="true">
+        <span class="project-client"></span>
+        <span class="project-date"></span>
+      </div>
+
+      <aside class="project-panel disable-selection" aria-live="polite">
+        <button class="panel-close" type="button" aria-label="Fechar projeto">
+          Voltar para a cidade
+        </button>
+        <p class="panel-kicker">Case Study</p>
+        <h2 class="panel-title">Escolha uma tela</h2>
+        <p class="panel-meta">Passe o mouse sobre um prédio e clique para abrir o case.</p>
+        <p class="panel-description">
+          As telas dos prédios usam os vídeos do portfólio como superfície principal e abrem o
+          projeto no clique.
+        </p>
+      </aside>
+
+    </div>
+  </body>
+</html>
