@@ -229,6 +229,7 @@ const posterTextureCache = new Map();
 const labelTextureCache = new Map();
 const buildingEntriesById = new Map();
 const screenTargetsByKey = new Map();
+const SCREEN_MEDIA_FIT_MODE = "contain";
 let hoveredBillboard = null;
 let selectedBillboard = null;
 let settledRotationY = 0;
@@ -706,7 +707,8 @@ const makeVideoAsset = (project) => {
     texture,
     frameCanvas,
     frameContext,
-    pendingSeek: false
+    pendingSeek: false,
+    displayTargets: new Set()
   };
 
   const drawCurrentFrame = () => {
@@ -716,6 +718,12 @@ const makeVideoAsset = (project) => {
     frameContext.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
     frameContext.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
     texture.needsUpdate = true;
+    asset.displayTargets.forEach((target) => {
+      if (!target.isVideoActive) {
+        return;
+      }
+      drawMediaToScreenTarget(target, frameCanvas, video.videoWidth, video.videoHeight);
+    });
   };
 
   video.addEventListener("loadedmetadata", () => {
@@ -739,7 +747,7 @@ const makeVideoAsset = (project) => {
 
 const createPosterTexture = (project) => {
   if (posterTextureCache.has(project.slug)) {
-    return posterTextureCache.get(project.slug);
+    return posterTextureCache.get(project.slug).texture;
   }
   const surface = document.createElement("canvas");
   surface.width = 640;
@@ -768,8 +776,106 @@ const createPosterTexture = (project) => {
 
   const texture = new THREE.CanvasTexture(surface);
   texture.colorSpace = THREE.SRGBColorSpace;
-  posterTextureCache.set(project.slug, texture);
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  posterTextureCache.set(project.slug, { canvas: surface, texture });
   return texture;
+};
+
+const getPosterCanvas = (project) => {
+  createPosterTexture(project);
+  return posterTextureCache.get(project.slug)?.canvas ?? null;
+};
+
+const createDisplayCanvasForScreen = (screenConfig) => {
+  const aspectRatio = Math.max(0.2, screenConfig.width / screenConfig.height);
+  const longEdge = 640;
+  if (aspectRatio >= 1) {
+    return {
+      canvas: Object.assign(document.createElement("canvas"), {
+        width: longEdge,
+        height: Math.max(320, Math.round(longEdge / aspectRatio))
+      })
+    };
+  }
+
+  return {
+    canvas: Object.assign(document.createElement("canvas"), {
+      width: Math.max(320, Math.round(longEdge * aspectRatio)),
+      height: longEdge
+    })
+  };
+};
+
+const drawMediaToScreenTarget = (target, source, sourceWidth, sourceHeight, fitMode = SCREEN_MEDIA_FIT_MODE) => {
+  if (!target?.displayContext || !sourceWidth || !sourceHeight) {
+    return;
+  }
+
+  const { displayCanvas, displayContext, displayTexture } = target;
+  const destWidth = displayCanvas.width;
+  const destHeight = displayCanvas.height;
+  const sourceAspect = sourceWidth / sourceHeight;
+  const destAspect = destWidth / destHeight;
+
+  let drawWidth = destWidth;
+  let drawHeight = destHeight;
+  let drawX = 0;
+  let drawY = 0;
+
+  displayContext.clearRect(0, 0, destWidth, destHeight);
+  displayContext.fillStyle = "#050505";
+  displayContext.fillRect(0, 0, destWidth, destHeight);
+
+  if (fitMode === "cover") {
+    if (sourceAspect > destAspect) {
+      drawHeight = destHeight;
+      drawWidth = destHeight * sourceAspect;
+      drawX = (destWidth - drawWidth) / 2;
+    } else {
+      drawWidth = destWidth;
+      drawHeight = destWidth / sourceAspect;
+      drawY = (destHeight - drawHeight) / 2;
+    }
+  } else if (fitMode === "stretch") {
+    drawWidth = destWidth;
+    drawHeight = destHeight;
+  } else {
+    if (sourceAspect > destAspect) {
+      drawWidth = destWidth;
+      drawHeight = destWidth / sourceAspect;
+      drawY = (destHeight - drawHeight) / 2;
+    } else {
+      drawHeight = destHeight;
+      drawWidth = destHeight * sourceAspect;
+      drawX = (destWidth - drawWidth) / 2;
+    }
+  }
+
+  displayContext.drawImage(source, drawX, drawY, drawWidth, drawHeight);
+  displayTexture.needsUpdate = true;
+};
+
+const refreshScreenTargetMedia = (target) => {
+  if (!target) {
+    return;
+  }
+
+  if (target.isVideoActive && target.video?.videoWidth && target.video?.videoHeight) {
+    drawMediaToScreenTarget(
+      target,
+      target.videoAsset.frameCanvas,
+      target.video.videoWidth,
+      target.video.videoHeight
+    );
+    return;
+  }
+
+  const posterCanvas = target.posterCanvas ?? getPosterCanvas(target.billboard.userData.project);
+  if (posterCanvas) {
+    drawMediaToScreenTarget(target, posterCanvas, posterCanvas.width, posterCanvas.height);
+  }
 };
 
 const getBeaconLabelText = (project) => project.title;
@@ -1380,6 +1486,10 @@ const clearCollection = (collection) => {
 };
 
 const clearCityAuthoringState = () => {
+  billboardTargets.forEach((target) => {
+    target.videoAsset?.displayTargets?.delete(target);
+    target.displayTexture?.dispose?.();
+  });
   clearCollection(billboardMeshes);
   clearCollection(interactiveMeshes);
   clearCollection(buildingSelectMeshes);
@@ -1444,7 +1554,15 @@ const createScreenTargetFromConfig = (entry, screenConfig) => {
   const project = findProjectBySlug(screenConfig.projectSlug);
   const asset = makeVideoAsset(project);
   const posterTexture = createPosterTexture(project);
+  const posterCanvas = getPosterCanvas(project);
   const mount = getScreenMountFromConfig(entry, screenConfig);
+  const { canvas: displayCanvas } = createDisplayCanvasForScreen(screenConfig);
+  const displayContext = displayCanvas.getContext("2d");
+  const displayTexture = new THREE.CanvasTexture(displayCanvas);
+  displayTexture.colorSpace = THREE.SRGBColorSpace;
+  displayTexture.minFilter = THREE.LinearFilter;
+  displayTexture.magFilter = THREE.LinearFilter;
+  displayTexture.generateMipmaps = false;
 
   const screenMount = new THREE.Group();
   screenMount.position.copy(mount.position);
@@ -1466,8 +1584,8 @@ const createScreenTargetFromConfig = (entry, screenConfig) => {
   screenMount.add(bezel);
 
   const screenMaterial = new THREE.MeshStandardMaterial({
-    map: posterTexture,
-    emissiveMap: posterTexture,
+    map: displayTexture,
+    emissiveMap: displayTexture,
     emissive: new THREE.Color("#ffffff"),
     emissiveIntensity: 0.18,
     roughness: 0.18,
@@ -1523,9 +1641,15 @@ const createScreenTargetFromConfig = (entry, screenConfig) => {
     videoAsset: asset,
     screenMaterial,
     isVideoActive: false,
-    config: screenConfig
+    config: screenConfig,
+    posterCanvas,
+    displayCanvas,
+    displayContext,
+    displayTexture
   };
 
+  asset.displayTargets.add(target);
+  refreshScreenTargetMedia(target);
   billboardTargets.push(target);
   screenTargetsByKey.set(target.key, target);
   return target;
@@ -1923,6 +2047,10 @@ const populateSelect = (select, options, selectedValue, fallbackLabel) => {
 };
 
 const renderEditorControls = () => {
+  if (!customizePanel) {
+    return;
+  }
+
   syncCustomizeControls();
   if (editorModeSelect) {
     editorModeSelect.value = editorState.mode;
@@ -2300,16 +2428,7 @@ const setBillboardVideoState = (target, active) => {
   }
 
   target.isVideoActive = active;
-
-  if (active) {
-    target.screenMaterial.map = target.videoTexture;
-    target.screenMaterial.emissiveMap = target.videoTexture;
-    target.screenMaterial.needsUpdate = true;
-    return;
-  }
-
-  target.screenMaterial.map = target.posterTexture;
-  target.screenMaterial.emissiveMap = target.posterTexture;
+  refreshScreenTargetMedia(target);
   target.screenMaterial.needsUpdate = true;
 };
 
@@ -2595,14 +2714,10 @@ const updatePlayerOverlay = () => {
     maxY = Math.max(maxY, screenY);
   });
 
-  const insetX = (maxX - minX) * 0.12;
-  const insetY = (maxY - minY) * 0.12;
-  const availableWidth = Math.max(120, maxX - minX - insetX * 2);
-  const availableHeight = Math.max(80, maxY - minY - insetY * 2);
-  const nextWidth = Math.max(120, availableWidth * 0.8);
-  const nextHeight = Math.max(80, availableHeight * 0.8);
-  const centeredLeft = minX + insetX + (availableWidth - nextWidth) / 2;
-  const centeredTop = minY + insetY + (availableHeight - nextHeight) / 2;
+  const nextWidth = Math.max(120, maxX - minX);
+  const nextHeight = Math.max(80, maxY - minY);
+  const centeredLeft = minX;
+  const centeredTop = minY;
   playerOverlay.style.left = `${centeredLeft}px`;
   playerOverlay.style.top = `${centeredTop}px`;
   playerOverlay.style.width = `${nextWidth}px`;

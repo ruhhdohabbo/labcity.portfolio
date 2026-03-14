@@ -1,199 +1,867 @@
-export const SCENE_CONFIG_STORAGE_KEY = "lab-city-scene-config-v1";
-
-const mutedLeftTowerKeys = new Set(["-4,-3", "-3,0"]);
-const removedBackScreenTowerKeys = new Set(["-1,-4"]);
-const beaconLabelWords = [
-  "brand",
-  "films",
-  "motion",
-  "studio",
-  "edits",
-  "visual",
-  "color",
-  "sound",
-  "craft",
-  "frames",
-  "ideas",
-  "future"
-];
-
-const baseBuildings = [
-  { x: -4, z: -3, width: 1.4, depth: 1.3, height: 5.4, capHeight: 0.4, capWidth: 1.0, capDepth: 1.0, sideCoreWidth: 0.34, sideCoreHeight: 2.8, sideCoreDepth: 0.6, sideCoreOffset: -0.55, rotationY: 0.02, screenWidth: 1.02, screenHeight: 0.66 },
-  { x: -3, z: 0, width: 1.2, depth: 1.2, height: 4.6, capHeight: 0.28, capWidth: 0.9, capDepth: 0.9, sideCoreWidth: 0.28, sideCoreHeight: 2.2, sideCoreDepth: 0.5, sideCoreOffset: 0.48, rotationY: -0.04, screenWidth: 0.92, screenHeight: 1.18 },
-  { x: -3, z: 2, width: 1.4, depth: 1.3, height: 6.6, capHeight: 0.42, capWidth: 1.1, capDepth: 1.02, sideCoreWidth: 0.34, sideCoreHeight: 3.1, sideCoreDepth: 0.55, sideCoreOffset: -0.5, rotationY: 0.06, screenWidth: 1.08, screenHeight: 0.68 },
-  { x: -1, z: -4, width: 1.1, depth: 1.1, height: 8.8, capHeight: 0.5, capWidth: 0.88, capDepth: 0.82, sideCoreWidth: 0.28, sideCoreHeight: 3.4, sideCoreDepth: 0.46, sideCoreOffset: 0.46, rotationY: -0.08, screenWidth: 0.92, screenHeight: 1.42 },
-  { x: -1, z: -1, width: 1.6, depth: 1.45, height: 7.2, capHeight: 0.46, capWidth: 1.2, capDepth: 1.1, sideCoreWidth: 0.44, sideCoreHeight: 3.0, sideCoreDepth: 0.68, sideCoreOffset: -0.58, rotationY: 0.02, screenWidth: 1.18, screenHeight: 0.72 },
-  { x: -1, z: 2, width: 1.22, depth: 1.16, height: 6.1, capHeight: 0.3, capWidth: 0.88, capDepth: 0.8, sideCoreWidth: 0.22, sideCoreHeight: 2.4, sideCoreDepth: 0.42, sideCoreOffset: 0.42, rotationY: -0.04, screenWidth: 0.92, screenHeight: 1.22 },
-  { x: 1, z: -3, width: 1.35, depth: 1.24, height: 10.4, capHeight: 0.46, capWidth: 0.98, capDepth: 0.9, sideCoreWidth: 0.26, sideCoreHeight: 4.2, sideCoreDepth: 0.42, sideCoreOffset: -0.44, rotationY: 0.06, screenWidth: 0.96, screenHeight: 1.5 },
-  { x: 1, z: 0, width: 1.84, depth: 1.58, height: 8.4, capHeight: 0.5, capWidth: 1.34, capDepth: 1.2, sideCoreWidth: 0.46, sideCoreHeight: 3.2, sideCoreDepth: 0.62, sideCoreOffset: 0.66, rotationY: -0.06, screenWidth: 1.28, screenHeight: 0.78 },
-  { x: 1, z: 3, width: 1.3, depth: 1.22, height: 5.2, capHeight: 0.32, capWidth: 0.94, capDepth: 0.86, sideCoreWidth: 0.24, sideCoreHeight: 2.2, sideCoreDepth: 0.44, sideCoreOffset: -0.42, rotationY: 0.08, screenWidth: 0.96, screenHeight: 0.62 },
-  { x: 3, z: -4, width: 1.52, depth: 1.36, height: 9.4, capHeight: 0.46, capWidth: 1.08, capDepth: 1.0, sideCoreWidth: 0.38, sideCoreHeight: 3.6, sideCoreDepth: 0.56, sideCoreOffset: 0.56, rotationY: -0.08, screenWidth: 1.12, screenHeight: 0.72 },
-  { x: 3, z: -1, width: 1.24, depth: 1.12, height: 7.4, capHeight: 0.36, capWidth: 0.92, capDepth: 0.84, sideCoreWidth: 0.24, sideCoreHeight: 2.8, sideCoreDepth: 0.4, sideCoreOffset: -0.38, rotationY: 0.04, screenWidth: 0.94, screenHeight: 1.24 },
-  { x: 3, z: 2, width: 1.62, depth: 1.42, height: 6.6, capHeight: 0.38, capWidth: 1.16, capDepth: 1.02, sideCoreWidth: 0.36, sideCoreHeight: 2.6, sideCoreDepth: 0.56, sideCoreOffset: 0.54, rotationY: -0.04, screenWidth: 1.16, screenHeight: 0.72 }
-];
-
-const maxLayoutRadius = Math.max(...baseBuildings.map((config) => Math.hypot(config.x, config.z)));
-
-const computeOutwardRotation = (x, z, organicOffset = 0) => {
-  const length = Math.hypot(x, z);
-  if (!length) {
-    return organicOffset;
-  }
-  return Math.atan2(x / length, z / length) + organicOffset * 0.45;
-};
-
-const getBuildingKey = ({ x, z }) => `${x},${z}`;
-
-const getVisibleScreenSide = (building, camera) => {
-  const toCamera = {
-    x: camera.x - building.position.x,
-    z: camera.z - building.position.z
-  };
-  const length = Math.hypot(toCamera.x, toCamera.z) || 1;
-  const localX = (toCamera.x / length) * Math.cos(-building.rotationY) - (toCamera.z / length) * Math.sin(-building.rotationY);
-  const localZ = (toCamera.x / length) * Math.sin(-building.rotationY) + (toCamera.z / length) * Math.cos(-building.rotationY);
-  const scores = [
-    { side: "front", score: localZ - 0.06 },
-    { side: "back", score: -localZ - 0.25 },
-    { side: "right", score: localX + 0.08 },
-    { side: "left", score: -localX + 0.08 }
-  ];
-  return scores.sort((a, b) => b.score - a.score)[0].side;
-};
-
-const getHomeScreenScore = (entry) => {
-  const forwardness = entry.position.z * 2.4;
-  const centerBias = -Math.abs(entry.position.x) * 0.35;
-  const heightBias = entry.dimensions.height * 0.45;
-  const prominenceBias = entry.prominence * 0.25;
-  return forwardness + centerBias + heightBias + prominenceBias;
-};
+export const SCENE_CONFIG_STORAGE_KEY = "lab-city-scene-config-v7";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
-
 const normalizeNumber = (value, fallback) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
 const normalizeString = (value, fallback) => (typeof value === "string" ? value : fallback);
 const normalizeBool = (value, fallback) => (typeof value === "boolean" ? value : fallback);
 
-export const createDefaultSceneConfig = (projects) => {
-  const defaultCamera = {
-    mode: "browse",
-    presetName: "Current framing",
-    orbitYaw: 0.34,
-    orbitPitch: 3.77,
-    orbitDistance: 16.74,
-    target: { x: 0, y: 3.6, z: 0 },
-    fov: 27.8
-  };
-
-  const buildings = baseBuildings.map((config, index) => {
-    const radius = Math.hypot(config.x, config.z);
-    const radialFactor = 1 - radius / maxLayoutRadius;
-    const buildingHeight = config.height * (0.76 + (1.22 - 0.76) * radialFactor);
-    const capHeight = config.capHeight * (0.9 + (1.18 - 0.9) * radialFactor);
-    const sideCoreHeight = config.sideCoreHeight * (0.9 + (1.12 - 0.9) * radialFactor);
-    const screenHeight = config.screenHeight * (0.92 + (1.08 - 0.92) * radialFactor);
-    const screenWidth = config.screenWidth * (0.95 + (1.04 - 0.95) * radialFactor);
-    const key = getBuildingKey(config);
-
-    return {
-      id: `tower-${String(index + 1).padStart(2, "0")}`,
-      key,
-      enabled: true,
-      position: { x: config.x, z: config.z },
-      rotationY: computeOutwardRotation(config.x, config.z, config.rotationY),
-      dimensions: {
-        width: config.width,
-        depth: config.depth,
-        height: buildingHeight
-      },
-      cap: {
-        enabled: config.capHeight > 0,
-        width: config.capWidth,
-        depth: config.capDepth,
-        height: capHeight
-      },
-      sideCore: {
-        enabled: config.sideCoreWidth > 0,
-        width: config.sideCoreWidth,
-        depth: config.sideCoreDepth,
-        height: sideCoreHeight,
-        offsetX: config.sideCoreOffset,
-        offsetZ: -config.depth * 0.16
-      },
-      label: {
-        enabled: !mutedLeftTowerKeys.has(key),
-        text: beaconLabelWords[index % beaconLabelWords.length],
-        color: "#ffffff",
-        offsetY: 0.44
-      },
-      beacon: {
-        enabled: !mutedLeftTowerKeys.has(key),
-        color: "#ff4a73",
-        offsetY: 0.22
-      },
-      defaultScreen: {
-        width: screenWidth,
-        height: screenHeight
-      },
-      prominence: buildingHeight + radialFactor * 4,
-      screens: []
-    };
-  });
-
-  const sortedByVisibility = [...buildings].sort((a, b) => {
-    return getHomeScreenScore(b) - getHomeScreenScore(a) || b.dimensions.height - a.dimensions.height;
-  });
-  const hiddenHomeEntry = sortedByVisibility[sortedByVisibility.length - 1];
-
-  sortedByVisibility
-    .filter((entry) => entry !== hiddenHomeEntry)
-    .forEach((entry, index) => {
-      if (mutedLeftTowerKeys.has(entry.key) || removedBackScreenTowerKeys.has(entry.key)) {
-        return;
-      }
-      const project = projects[index % projects.length];
-      entry.label.text = project.title;
-      entry.screens.push({
-        id: `${entry.id}-screen-01`,
-        enabled: true,
-        projectSlug: project.slug,
-        side: getVisibleScreenSide(entry, { x: 0.1, z: 16.7 }),
-        width: entry.defaultScreen.width,
-        height: entry.defaultScreen.height,
-        topOffset: 0.28,
-        offsetAlongFace: 0,
-        offsetOutward: 0.03
-      });
-    });
-
-  return {
-    meta: {
-      version: 2,
-      updatedAt: new Date().toISOString()
+const DEFAULT_SCENE_TEMPLATE = {
+  "meta": {
+    "version": 2,
+    "updatedAt": "2026-03-14T20:17:08.932Z"
+  },
+  "camera": {
+    "mode": "browse",
+    "presetName": "Current framing",
+    "orbitYaw": 0,
+    "orbitPitch": 39,
+    "orbitDistance": 17.3,
+    "target": {
+      "x": -0.9,
+      "y": 4.5,
+      "z": 0
     },
-    camera: defaultCamera,
-    scene: {
-      bgColor: "#f02050",
-      fogColor: "#f02050",
-      fogNear: 11.6,
-      fogFar: 20.6,
-      ambientIntensity: 4,
-      frontLightIntensity: 20,
-      backLightIntensity: 0.5,
-      roofLightIntensity: 1.3,
-      buildingColor: "#050607",
-      buildingRoughness: 0.95,
-      buildingMetalness: 0.91,
-      buildingClearcoat: 0.11,
-      buildingClearcoatRoughness: 1,
-      buildingEnvMapIntensity: 1.81,
-      screenLightIntensity: 1.9,
-      screenEmissiveIntensity: 0.38,
-      selectedScale: 1.32
+    "fov": 35.9
+  },
+  "scene": {
+    "bgColor": "#f02050",
+    "fogColor": "#f02050",
+    "fogNear": 12.8,
+    "fogFar": 21.7,
+    "ambientIntensity": 4,
+    "frontLightIntensity": 20,
+    "backLightIntensity": 0.5,
+    "roofLightIntensity": 1.3,
+    "buildingColor": "#050607",
+    "buildingRoughness": 0.95,
+    "buildingMetalness": 0.91,
+    "buildingClearcoat": 0.11,
+    "buildingClearcoatRoughness": 1,
+    "buildingEnvMapIntensity": 1.81,
+    "screenLightIntensity": 1.9,
+    "screenEmissiveIntensity": 0.38,
+    "selectedScale": 1.32
+  },
+  "buildings": [
+    {
+      "id": "tower-12",
+      "key": "-2,3.5",
+      "enabled": true,
+      "position": {
+        "x": -2,
+        "z": 3.5
+      },
+      "rotationY": -1.7,
+      "dimensions": {
+        "width": 1.7,
+        "depth": 1.7,
+        "height": 6.9
+      },
+      "cap": {
+        "enabled": false,
+        "width": 1.16,
+        "depth": 1.02,
+        "height": 0.6
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": true,
+        "text": "RIO SUL",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": true,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-12-screen-01",
+          "enabled": true,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1,
+          "height": 2.1,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
     },
-    buildings
-  };
+    {
+      "id": "tower-02",
+      "key": "-4.2,2.3",
+      "enabled": true,
+      "position": {
+        "x": -4.2,
+        "z": 2.3
+      },
+      "rotationY": -2.22,
+      "dimensions": {
+        "width": 1.1,
+        "depth": 1.7,
+        "height": 5.2
+      },
+      "cap": {
+        "enabled": true,
+        "width": 0.7,
+        "depth": 0.7,
+        "height": 0.2
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": true,
+        "text": "live action",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": true,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-02-screen-01",
+          "enabled": true,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-03",
+      "key": "-3.2,0.1",
+      "enabled": true,
+      "position": {
+        "x": -3.2,
+        "z": 0.1
+      },
+      "rotationY": -2.13,
+      "dimensions": {
+        "width": 1,
+        "depth": 1.2,
+        "height": 7.4
+      },
+      "cap": {
+        "enabled": false,
+        "width": 1.16,
+        "depth": 1.02,
+        "height": 0.37
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": true,
+        "text": "PRIO",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": true,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-03-screen-01",
+          "enabled": true,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 0.9,
+          "height": 1.6,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-04",
+      "key": "-1.1,1.4",
+      "enabled": true,
+      "position": {
+        "x": -1.1,
+        "z": 1.4
+      },
+      "rotationY": -1.59,
+      "dimensions": {
+        "width": 1.4,
+        "depth": 1.4,
+        "height": 9.8
+      },
+      "cap": {
+        "enabled": true,
+        "width": 0.5,
+        "depth": 0.5,
+        "height": 0.2
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": true,
+        "text": "Elena Horto",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": true,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-04-screen-01",
+          "enabled": true,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.2,
+          "height": 2.2,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-05",
+      "key": "0.5,4.2",
+      "enabled": true,
+      "position": {
+        "x": 0.5,
+        "z": 4.2
+      },
+      "rotationY": -0.96,
+      "dimensions": {
+        "width": 1,
+        "depth": 1.3,
+        "height": 7.4
+      },
+      "cap": {
+        "enabled": true,
+        "width": 0.6,
+        "depth": 0.9,
+        "height": 0.2
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": true,
+        "text": "Hometree",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": true,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-05-screen-01",
+          "enabled": true,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1,
+          "height": 2.4,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-06",
+      "key": "1.2,0.2",
+      "enabled": true,
+      "position": {
+        "x": 1.2,
+        "z": 0.2
+      },
+      "rotationY": -0.94,
+      "dimensions": {
+        "width": 1,
+        "depth": 1.3,
+        "height": 8.1
+      },
+      "cap": {
+        "enabled": false,
+        "width": 0.6,
+        "depth": 0.6,
+        "height": 0.1
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": true,
+        "text": "Prio",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": true,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-06-screen-01",
+          "enabled": true,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-07",
+      "key": "2.6,2.3",
+      "enabled": true,
+      "position": {
+        "x": 2.6,
+        "z": 2.3
+      },
+      "rotationY": -1.11,
+      "dimensions": {
+        "width": 1,
+        "depth": 1.7,
+        "height": 5.1
+      },
+      "cap": {
+        "enabled": true,
+        "width": 0.3,
+        "depth": 0.6,
+        "height": 0.2
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": true,
+        "text": "Elena Horto",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": true,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-07-screen-01",
+          "enabled": true,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-08",
+      "key": "0.3,-2.6",
+      "enabled": true,
+      "position": {
+        "x": 0.3,
+        "z": -2.6
+      },
+      "rotationY": -1.25,
+      "dimensions": {
+        "width": 1.1,
+        "depth": 1.1,
+        "height": 9
+      },
+      "cap": {
+        "enabled": true,
+        "width": 0.5,
+        "depth": 0.5,
+        "height": 0.1
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": true,
+        "text": "LIVE ACTION",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": true,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-08-screen-01",
+          "enabled": true,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-09",
+      "key": "-2,-1.5",
+      "enabled": true,
+      "position": {
+        "x": -2,
+        "z": -1.5
+      },
+      "rotationY": -1.84,
+      "dimensions": {
+        "width": 1.1,
+        "depth": 1.1,
+        "height": 9.7
+      },
+      "cap": {
+        "enabled": true,
+        "width": 0.5,
+        "depth": 0.5,
+        "height": 0.1
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": true,
+        "text": "LIVE ACTION",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": true,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-09-screen-01",
+          "enabled": true,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-10",
+      "key": "-7,-0.5",
+      "enabled": true,
+      "position": {
+        "x": -7,
+        "z": -0.5
+      },
+      "rotationY": -1.06,
+      "dimensions": {
+        "width": 1.4,
+        "depth": 1.5,
+        "height": 4.3
+      },
+      "cap": {
+        "enabled": false,
+        "width": 1.16,
+        "depth": 1.02,
+        "height": 0.37
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": false,
+        "text": "Midnight Cut copy copy copy",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": false,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-10-screen-01",
+          "enabled": false,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-11",
+      "key": "4.6,-0.6",
+      "enabled": true,
+      "position": {
+        "x": 4.6,
+        "z": -0.6
+      },
+      "rotationY": 0.89,
+      "dimensions": {
+        "width": 1.2,
+        "depth": 1,
+        "height": 4.3
+      },
+      "cap": {
+        "enabled": false,
+        "width": 1.16,
+        "depth": 1.02,
+        "height": 0.37
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": false,
+        "text": "Midnight Cut copy copy copy copy",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": false,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-11-screen-01",
+          "enabled": false,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-13",
+      "key": "-5.3,-3.5",
+      "enabled": true,
+      "position": {
+        "x": -5.3,
+        "z": -3.5
+      },
+      "rotationY": -0.83,
+      "dimensions": {
+        "width": 1.4,
+        "depth": 1,
+        "height": 7.4
+      },
+      "cap": {
+        "enabled": false,
+        "width": 1.16,
+        "depth": 1.02,
+        "height": 0.37
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": false,
+        "text": "Midnight Cut copy copy copy copy",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": false,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-13-screen-01",
+          "enabled": false,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-14",
+      "key": "4.2,-2.9",
+      "enabled": true,
+      "position": {
+        "x": 4.2,
+        "z": -2.9
+      },
+      "rotationY": 0.88,
+      "dimensions": {
+        "width": 1.3,
+        "depth": 1.1,
+        "height": 7.4
+      },
+      "cap": {
+        "enabled": false,
+        "width": 1.16,
+        "depth": 1.02,
+        "height": 0.37
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": false,
+        "text": "Midnight Cut copy copy copy copy copy",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": false,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-14-screen-01",
+          "enabled": false,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-15",
+      "key": "6.6,-2.7",
+      "enabled": true,
+      "position": {
+        "x": 6.6,
+        "z": -2.7
+      },
+      "rotationY": 1.14,
+      "dimensions": {
+        "width": 1.3,
+        "depth": 0.9,
+        "height": 5.4
+      },
+      "cap": {
+        "enabled": false,
+        "width": 1.16,
+        "depth": 1.02,
+        "height": 0.37
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": false,
+        "text": "Midnight Cut copy copy copy copy copy copy",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": false,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-15-screen-01",
+          "enabled": false,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    }
+  ]
+};
+
+export const createDefaultSceneConfig = () => {
+  const config = clone(DEFAULT_SCENE_TEMPLATE);
+  config.meta.updatedAt = new Date().toISOString();
+  return config;
 };
 
 export const cloneSceneConfig = (config) => clone(config);
@@ -206,8 +874,9 @@ export const normalizeSceneConfig = (input, projects) => {
 
   const config = clone(defaults);
   const source = input;
-
   config.meta.updatedAt = new Date().toISOString();
+  config.meta.version = defaults.meta.version;
+
   config.camera.mode = normalizeString(source.camera?.mode, defaults.camera.mode);
   config.camera.presetName = normalizeString(source.camera?.presetName, defaults.camera.presetName);
   config.camera.orbitYaw = normalizeNumber(source.camera?.orbitYaw, defaults.camera.orbitYaw);
@@ -219,16 +888,19 @@ export const normalizeSceneConfig = (input, projects) => {
   config.camera.fov = normalizeNumber(source.camera?.fov, defaults.camera.fov);
 
   Object.keys(config.scene).forEach((key) => {
-    config.scene[key] = normalizeNumber(source.scene?.[key], defaults.scene[key]);
-    if (typeof defaults.scene[key] === "string") {
-      config.scene[key] = normalizeString(source.scene?.[key], defaults.scene[key]);
-    }
+    config.scene[key] =
+      typeof defaults.scene[key] === "string"
+        ? normalizeString(source.scene?.[key], defaults.scene[key])
+        : normalizeNumber(source.scene?.[key], defaults.scene[key]);
   });
 
   const defaultBuildingById = new Map(defaults.buildings.map((building) => [building.id, building]));
   config.buildings = Array.isArray(source.buildings)
     ? source.buildings.map((building, index) => {
-        const fallback = defaultBuildingById.get(building.id) ?? defaults.buildings[index] ?? defaults.buildings[0];
+        const fallback =
+          defaultBuildingById.get(building.id) ??
+          defaults.buildings[index] ??
+          defaults.buildings[0];
         return {
           id: normalizeString(building.id, fallback.id),
           key: normalizeString(building.key, fallback.key),
@@ -275,34 +947,26 @@ export const normalizeSceneConfig = (input, projects) => {
           prominence: normalizeNumber(building.prominence, fallback.prominence),
           screens: Array.isArray(building.screens)
             ? building.screens.map((screen, screenIndex) => ({
-                id: normalizeString(screen.id, `${fallback.id}-screen-${String(screenIndex + 1).padStart(2, "0")}`),
+                id: normalizeString(
+                  screen.id,
+                  `${fallback.id}-screen-${String(screenIndex + 1).padStart(2, "0")}`
+                ),
                 enabled: normalizeBool(screen.enabled, true),
-                projectSlug: normalizeString(screen.projectSlug, projects[screenIndex % projects.length]?.slug ?? projects[0].slug),
-                side: normalizeString(screen.side, "front"),
-                width: normalizeNumber(screen.width, fallback.defaultScreen.width),
-                height: normalizeNumber(screen.height, fallback.defaultScreen.height),
-                topOffset: normalizeNumber(screen.topOffset, 0.28),
-                offsetAlongFace: normalizeNumber(screen.offsetAlongFace, 0),
-                offsetOutward: normalizeNumber(screen.offsetOutward, 0.03)
+                projectSlug: normalizeString(
+                  screen.projectSlug,
+                  projects[screenIndex % projects.length]?.slug ?? projects[0].slug
+                ),
+                side: normalizeString(screen.side, fallback.screens[screenIndex]?.side ?? "front"),
+                width: normalizeNumber(screen.width, fallback.screens[screenIndex]?.width ?? fallback.defaultScreen.width),
+                height: normalizeNumber(screen.height, fallback.screens[screenIndex]?.height ?? fallback.defaultScreen.height),
+                topOffset: normalizeNumber(screen.topOffset, fallback.screens[screenIndex]?.topOffset ?? 0.28),
+                offsetAlongFace: normalizeNumber(screen.offsetAlongFace, fallback.screens[screenIndex]?.offsetAlongFace ?? 0),
+                offsetOutward: normalizeNumber(screen.offsetOutward, fallback.screens[screenIndex]?.offsetOutward ?? 0.03)
               }))
             : clone(fallback.screens)
         };
       })
     : clone(defaults.buildings);
-
-  if ((source.meta?.version ?? 1) < 2) {
-    const legacyPitch = Math.abs(config.camera.orbitPitch - 16.4) < 0.01;
-    const legacyDistance = Math.abs(config.camera.orbitDistance - 17.35) < 0.02;
-    const defaultTarget =
-      Math.abs(config.camera.target.x) < 0.01 &&
-      Math.abs(config.camera.target.y - 3.6) < 0.01 &&
-      Math.abs(config.camera.target.z) < 0.01;
-    if (legacyPitch && legacyDistance && defaultTarget) {
-      config.camera.orbitPitch = defaults.camera.orbitPitch;
-      config.camera.orbitDistance = defaults.camera.orbitDistance;
-    }
-    config.meta.version = defaults.meta.version;
-  }
 
   return config;
 };
