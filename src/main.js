@@ -174,6 +174,11 @@ const defaultCustomization = {
 
 const customization = { ...defaultCustomization };
 const mutedLeftTowerKeys = new Set(["-4,-3", "-3,0"]);
+const removedBackScreenTowerKeys = new Set(["-1,-4"]);
+const raisedScreenTowerOffsets = new Map([
+  ["-1,2", 0.52],
+  ["-1,-1", 0.42]
+]);
 
 const mathRandom = (num = 8) => -Math.random() * num + Math.random() * num;
 const getBuildingKey = ({ x, z }) => `${x},${z}`;
@@ -546,7 +551,8 @@ const rectsOverlap = (a, b, margin = 0.04) =>
   a.minY <= b.maxY + margin;
 
 const addScreenToBuilding = (entry, project) => {
-  if (mutedLeftTowerKeys.has(getBuildingKey(entry))) {
+  const buildingKey = getBuildingKey(entry);
+  if (mutedLeftTowerKeys.has(buildingKey) || removedBackScreenTowerKeys.has(buildingKey)) {
     return;
   }
 
@@ -560,7 +566,9 @@ const addScreenToBuilding = (entry, project) => {
     "beats-midnight-cut": 1.02
   };
   const verticalScreenLift = height > width ? 0.34 : 0;
-  const extraScreenYOffset = (extraScreenYOffsetBySlug[project.slug] ?? 0) + verticalScreenLift;
+  const towerScreenLift = raisedScreenTowerOffsets.get(buildingKey) ?? 0;
+  const extraScreenYOffset =
+    (extraScreenYOffsetBySlug[project.slug] ?? 0) + verticalScreenLift + towerScreenLift;
 
   const screenMount = new THREE.Group();
   screenMount.position.copy(mount.position);
