@@ -18,14 +18,44 @@
     <div id="app">
       <canvas class="scene"></canvas>
 
+      <div class="intro-overlay" aria-hidden="true">
+        <p class="intro-overlay-text">Onde ideias encontram <strong>realidade</strong></p>
+      </div>
+
       <div class="container-fluid fixed-top header disable-selection">
         <div class="row">
           <div class="col spacer"></div>
           <div class="col-md-6">
             <div class="header-content">
-              <h1><strong>Lab City 3D</strong></h1>
-              <p class="small">– Back to the red –</p>
+              <h1 class="logo-title">
+                <img src="./assets/logo-labcity.png" alt="Lab City 3D" class="header-logo" />
+              </h1>
+              <button class="small about-trigger" type="button" aria-expanded="false">sobre</button>
             </div>
+
+            <aside class="about-panel" aria-hidden="true">
+              <button class="about-close" type="button" aria-label="Fechar sobre">Fechar</button>
+              <div class="about-copy">
+                <div class="about-media">
+                  <img src="./assets/fundador-foto.png" alt="Foto de Rubens Bonon" class="about-photo" />
+                </div>
+                <div class="about-copy-main">
+                  <p class="about-kicker">Fundador</p>
+                  <h2 class="about-title">Rubens Bonon</h2>
+                  <p class="about-text">
+                    Placeholder para foto e biografia. Aqui entra um resumo sobre o fundador, a
+                    visao criativa e a forma como o estudio transforma direcao, montagem e design
+                    em experiencias mais imersivas.
+                  </p>
+                  <p class="about-kicker">Empresa</p>
+                  <p class="about-text">
+                    Placeholder para o texto institucional da empresa, falando sobre
+                    posicionamento, servicos, abordagem visual e o tipo de projeto que o portfolio
+                    apresenta.
+                  </p>
+                </div>
+              </div>
+            </aside>
           </div>
           <div class="col spacer"></div>
         </div>
@@ -56,6 +86,10 @@
           projeto no clique.
         </p>
       </aside>
+
+      <div class="video-player-overlay" aria-hidden="true">
+        <video class="video-player" controls playsinline preload="metadata"></video>
+      </div>
 
     </div>
   </body>

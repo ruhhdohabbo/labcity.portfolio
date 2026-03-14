@@ -1,10 +1,17 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@300;700&display=swap");
 
 :root {
   --panel: rgba(0, 0, 0, 0.34);
   --line: rgba(255, 255, 255, 0.08);
   --text: #ffffff;
   --muted: rgba(255, 255, 255, 0.5);
+  --logo-card-left: 37px;
+  --logo-card-top: 37px;
+  --logo-card-width: 300px;
+  --logo-card-ratio: 0.6;
+  --logo-card-height: 248px;
+  --logo-scale: 1.81;
+  --logo-subtitle-offset: 0px;
 }
 
 * {
@@ -32,10 +39,28 @@ body[data-focused="true"] .hint {
   opacity: 0.18;
 }
 
+body[data-about="true"] .scene {
+  filter: blur(14px) saturate(0.92) brightness(0.82);
+  transform: scale(1.02);
+}
+
+body[data-about="true"] .hint,
+body[data-about="true"] .project-label,
+body[data-about="true"] .project-panel {
+  opacity: 0;
+  pointer-events: none;
+}
+
+body[data-intro-hidden="true"] .intro-overlay {
+  opacity: 0;
+  transform: scale(1.02);
+}
+
 canvas {
   display: block;
   width: 100%;
   height: 100%;
+  transition: filter 260ms ease, transform 260ms ease;
 }
 
 p {
@@ -48,6 +73,35 @@ p {
   height: 100vh;
 }
 
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  z-index: 10;
+  pointer-events: none;
+  transition: opacity 1200ms ease, transform 1200ms ease;
+}
+
+.intro-overlay-text {
+  margin: 0;
+  max-width: 96vw;
+  color: rgba(255, 255, 255, 0.94);
+  font-family: "Sora", sans-serif;
+  font-size: clamp(1.8rem, 4.6vw, 4.8rem);
+  font-weight: 300;
+  line-height: 0.98;
+  letter-spacing: -0.05em;
+  text-align: center;
+  white-space: nowrap;
+  text-shadow: 0 12px 44px rgba(0, 0, 0, 0.2);
+}
+
+.intro-overlay-text strong {
+  font-weight: 700;
+}
+
 .container-fluid,
 .row,
 .col,
@@ -57,10 +111,10 @@ p {
 
 .header {
   position: fixed;
-  left: 24px;
-  top: 24px;
+  left: var(--logo-card-left);
+  top: var(--logo-card-top);
   transform: none;
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 4;
   transition: opacity 280ms ease;
 }
@@ -72,8 +126,9 @@ p {
 
 .col-md-6 {
   display: flex;
-  justify-content: flex-start;
-  width: min(100vw - 48px, 420px);
+  flex-direction: column;
+  align-items: flex-start;
+  width: min(calc(100vw - 48px), var(--logo-card-width));
 }
 
 .spacer {
@@ -81,10 +136,16 @@ p {
 }
 
 .header-content {
-  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: var(--logo-card-height);
+  padding: 14px;
   background-color: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: 16px;
   backdrop-filter: blur(16px);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
 }
@@ -97,23 +158,158 @@ p {
   font-weight: 800;
   letter-spacing: -0.06em;
   position: relative;
+  width: 100%;
+  flex: 1;
+}
+
+.logo-title {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100%;
+}
+
+.header-logo {
+  display: block;
+  width: min(100%, 192px);
+  max-width: none;
+  height: auto;
+  transform: scale(var(--logo-scale));
+  transform-origin: center center;
+  pointer-events: none;
 }
 
 .header-content h1::after {
-  content: " Three JS";
-  font-size: 12px;
+  content: " 2026";
+  font-size: 9px;
   position: absolute;
-  top: 8px;
-  padding-left: 5px;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding-left: 0;
   font-weight: 400;
   letter-spacing: 0.1em;
 }
 
 .small {
-  margin: 6px 0 0;
-  font-size: 0.92rem;
+  width: 100%;
+  margin: 0 0 var(--logo-subtitle-offset);
+  font-size: 0.7rem;
   letter-spacing: 0.05em;
+  text-transform: none;
+  text-align: center;
 }
+
+.about-trigger {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.about-panel {
+  position: fixed;
+  left: var(--logo-card-left);
+  top: calc(var(--logo-card-top) + var(--logo-card-height) + 14px);
+  width: min(calc(100vw - 48px), 720px);
+  max-height: calc(100vh - (var(--logo-card-top) + var(--logo-card-height) + 36px));
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+  z-index: 5;
+  overflow-y: auto;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.about-panel[aria-hidden="true"] {
+  display: none;
+}
+
+.about-close {
+  position: sticky;
+  top: 0;
+  margin-left: auto;
+  display: inline-flex;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.about-media {
+  overflow: hidden;
+  width: 100%;
+  aspect-ratio: 5 / 4;
+  margin-top: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.14), transparent 45%),
+    linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+}
+
+.about-photo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center top;
+}
+
+.about-copy {
+  margin-top: 16px;
+  text-align: left;
+  display: grid;
+  grid-template-columns: minmax(240px, 290px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.about-kicker {
+  margin: 0 0 8px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.about-title {
+  margin: 0 0 14px;
+  font-size: 1.8rem;
+  line-height: 0.95;
+  letter-spacing: -0.04em;
+}
+
+.about-text {
+  margin: 0 0 16px;
+  color: rgba(255, 255, 255, 0.76);
+  line-height: 1.6;
+  text-align: left;
+}
+
+.about-copy-main {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .about-panel {
+    width: min(calc(100vw - 32px), 520px);
+    left: 16px;
+  }
+
+  .about-copy {
+    grid-template-columns: 1fr;
+  }
+}
+
 
 .hint {
   position: fixed;
@@ -194,6 +390,33 @@ p {
 
 .project-panel[data-open="true"] {
   transform: translate3d(0, -50%, 0);
+}
+
+.video-player-overlay {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 320px;
+  height: 180px;
+  z-index: 6;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.video-player-overlay[aria-hidden="false"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.video-player {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+  border-radius: 14px;
+  background: #050505;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
 }
 
 .panel-close {

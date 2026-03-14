@@ -16,6 +16,13 @@ const panelDescription = document.querySelector(".panel-description");
 const panelKicker = document.querySelector(".panel-kicker");
 const header = document.querySelector(".header");
 const hint = document.querySelector(".hint");
+const aboutTrigger = document.querySelector(".about-trigger");
+const aboutPanel = document.querySelector(".about-panel");
+const aboutClose = document.querySelector(".about-close");
+const introOverlay = document.querySelector(".intro-overlay");
+const introOverlayText = document.querySelector(".intro-overlay-text");
+const playerOverlay = document.querySelector(".video-player-overlay");
+const playerElement = document.querySelector(".video-player");
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -92,6 +99,7 @@ const selectedScreenRect = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 const buildingRect = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
 const billboardCornerPoints = [0, 1, 2, 3].map(() => new THREE.Vector3());
 const boxCornerPoints = Array.from({ length: 8 }, () => new THREE.Vector3());
+const playerCornerPoints = Array.from({ length: 4 }, () => new THREE.Vector3());
 const occlusionOffsets = [
   [0, 0],
   [-0.74, 0],
@@ -109,6 +117,7 @@ const occlusionOffsets = [
 ];
 
 const billboardMeshes = [];
+const interactiveMeshes = [];
 const billboardTargets = [];
 const buildings = [];
 const occludableBuildings = [];
@@ -121,6 +130,10 @@ let settledRotationY = 0;
 let settledRotationX = 0.18;
 let occlusionFocused = false;
 let occlusionSelection = null;
+let aboutOpen = false;
+let introHidden = false;
+let homeIdleStartedAt = 0;
+const introReturnDelay = 10000;
 
 const cameraState = {
   currentPosition: camera.position.clone(),
@@ -160,8 +173,37 @@ const defaultCustomization = {
 };
 
 const customization = { ...defaultCustomization };
+const mutedLeftTowerKeys = new Set(["-4,-3", "-3,0"]);
 
 const mathRandom = (num = 8) => -Math.random() * num + Math.random() * num;
+const getBuildingKey = ({ x, z }) => `${x},${z}`;
+
+const dismissIntro = () => {
+  if (introHidden) {
+    return;
+  }
+  introHidden = true;
+  homeIdleStartedAt = 0;
+  document.body.dataset.introHidden = "true";
+  introOverlay?.setAttribute("aria-hidden", "true");
+};
+
+const restoreIntro = () => {
+  introHidden = false;
+  homeIdleStartedAt = 0;
+  document.body.dataset.introHidden = "false";
+  introOverlay?.setAttribute("aria-hidden", "false");
+};
+
+const setAboutOpen = (open) => {
+  aboutOpen = open;
+  document.body.dataset.about = open ? "true" : "false";
+  if (aboutPanel) {
+    aboutPanel.hidden = !open;
+    aboutPanel.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+  aboutTrigger?.setAttribute("aria-expanded", open ? "true" : "false");
+};
 
 const createFacadeTextures = () => {
   const colorCanvas = document.createElement("canvas");
@@ -242,6 +284,48 @@ const createGlowTexture = () => {
 };
 
 const glowTexture = createGlowTexture();
+const beaconLabelWords = [
+  "brand",
+  "films",
+  "motion",
+  "studio",
+  "edits",
+  "visual",
+  "color",
+  "sound",
+  "craft",
+  "frames",
+  "ideas",
+  "future"
+];
+
+const createBeaconLabelTexture = (text, color) => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 768;
+  canvas.height = 192;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  const labelText = text.toUpperCase();
+  let fontSize = 82;
+  const horizontalPadding = 56;
+  context.font = `700 ${fontSize}px Inter`;
+  while (context.measureText(labelText).width > canvas.width - horizontalPadding * 2 && fontSize > 44) {
+    fontSize -= 4;
+    context.font = `700 ${fontSize}px Inter`;
+  }
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillStyle = color;
+  context.shadowColor = color;
+  context.shadowBlur = 18;
+  context.fillText(labelText, canvas.width / 2, canvas.height / 2 + 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+};
 
 const createBuildingMaterial = () =>
   new THREE.MeshPhysicalMaterial({
@@ -283,16 +367,54 @@ const makeVideoAsset = (project) => {
   video.loop = true;
   video.muted = true;
   video.playsInline = true;
-  video.preload = "auto";
+  video.preload = "metadata";
   video.crossOrigin = "anonymous";
 
-  const texture = new THREE.VideoTexture(video);
+  const frameCanvas = document.createElement("canvas");
+  frameCanvas.width = 320;
+  frameCanvas.height = 180;
+  const frameContext = frameCanvas.getContext("2d");
+  frameContext.fillStyle = "#050505";
+  frameContext.fillRect(0, 0, frameCanvas.width, frameCanvas.height);
+
+  const texture = new THREE.CanvasTexture(frameCanvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
   texture.generateMipmaps = false;
 
-  const asset = { video, texture };
+  const asset = {
+    video,
+    texture,
+    frameCanvas,
+    frameContext,
+    pendingSeek: false
+  };
+
+  const drawCurrentFrame = () => {
+    if (!video.videoWidth || !video.videoHeight) {
+      return;
+    }
+    frameContext.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
+    frameContext.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
+    texture.needsUpdate = true;
+  };
+
+  video.addEventListener("loadedmetadata", () => {
+    video.currentTime = 0;
+  });
+
+  video.addEventListener("loadeddata", () => {
+    drawCurrentFrame();
+    video.pause();
+  });
+
+  video.addEventListener("seeked", () => {
+    asset.pendingSeek = false;
+    drawCurrentFrame();
+  });
+
+  video.load();
   sharedVideoAssets.set(project.videoSrc, asset);
   return asset;
 };
@@ -327,6 +449,8 @@ const createPosterTexture = (project) => {
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 };
+
+const getBeaconLabelText = (project) => project.title;
 
 const computeOutwardRotation = (x, z, organicOffset = 0) => {
   const outward = new THREE.Vector2(x, z);
@@ -422,6 +546,10 @@ const rectsOverlap = (a, b, margin = 0.04) =>
   a.minY <= b.maxY + margin;
 
 const addScreenToBuilding = (entry, project) => {
+  if (mutedLeftTowerKeys.has(getBuildingKey(entry))) {
+    return;
+  }
+
   const asset = makeVideoAsset(project);
   const posterTexture = createPosterTexture(project);
   const width = entry.screenWidth;
@@ -431,7 +559,8 @@ const addScreenToBuilding = (entry, project) => {
     "adobe-spectrum-night": 0.72,
     "beats-midnight-cut": 1.02
   };
-  const extraScreenYOffset = extraScreenYOffsetBySlug[project.slug] ?? 0;
+  const verticalScreenLift = height > width ? 0.34 : 0;
+  const extraScreenYOffset = (extraScreenYOffsetBySlug[project.slug] ?? 0) + verticalScreenLift;
 
   const screenMount = new THREE.Group();
   screenMount.position.copy(mount.position);
@@ -473,6 +602,7 @@ const addScreenToBuilding = (entry, project) => {
     buildingEntry: entry
   };
   screenMount.add(screen);
+  interactiveMeshes.push(screen);
 
   const glow = new THREE.PointLight(project.accent, 1.2, 3.6, 2);
   glow.position.set(0, 0, 0.35);
@@ -503,9 +633,23 @@ const addScreenToBuilding = (entry, project) => {
     posterTexture,
     videoTexture: asset.texture,
     video: asset.video,
+    videoAsset: asset,
     screenMaterial,
     isVideoActive: false
   });
+
+  if (entry.beaconLabel && entry.beaconLabelMaterial) {
+    const nextTexture = createBeaconLabelTexture(getBeaconLabelText(project), "#ffffff");
+    if (entry.beaconLabelMaterial.map) {
+      entry.beaconLabelMaterial.map.dispose();
+    }
+    entry.beaconLabelMaterial.map = nextTexture;
+    entry.beaconLabelMaterial.color.set("#ffffff");
+    entry.beaconLabelMaterial.needsUpdate = true;
+    entry.beaconLabel.userData.project = project;
+    entry.beaconLabel.userData.linkedBillboard = screen;
+    interactiveMeshes.push(entry.beaconLabel);
+  }
 };
 
 const updateSelectedFrame = () => {
@@ -662,27 +806,27 @@ const updateFocusedOcclusionTargets = () => {
 
 const updateBuildingOcclusion = () => {
   occludableBuildings.forEach((entry) => {
-      entry.currentOpacity = THREE.MathUtils.lerp(
-        entry.currentOpacity,
-        entry.targetOpacity,
-        0.16
-      );
+    entry.currentOpacity = THREE.MathUtils.lerp(
+      entry.currentOpacity,
+      entry.targetOpacity,
+      0.16
+    );
 
-      const hidden = entry.currentOpacity < 0.02 && entry.targetOpacity === 0;
+    const hidden = entry.currentOpacity < 0.02 && entry.targetOpacity === 0;
 
-      entry.renderMeshes.forEach((mesh) => {
-        mesh.visible = !hidden;
-      });
-
-      entry.fadeMaterials.forEach((material) => {
-        material.opacity = entry.currentOpacity;
-        material.depthWrite = entry.currentOpacity > 0.08;
-      });
-
-      entry.roofPointLights.forEach((light) => {
-        light.intensity = hidden ? 0 : customization.roofLightIntensity * entry.currentOpacity;
-      });
+    entry.renderMeshes.forEach((mesh) => {
+      mesh.visible = !hidden;
     });
+
+    entry.fadeMaterials.forEach((material) => {
+      material.opacity = entry.currentOpacity;
+      material.depthWrite = entry.currentOpacity > 0.08;
+    });
+
+    entry.roofPointLights.forEach((light) => {
+      light.intensity = hidden ? 0 : customization.roofLightIntensity * entry.currentOpacity;
+    });
+  });
 };
 
 const createBuilding = (config) => {
@@ -691,6 +835,7 @@ const createBuilding = (config) => {
   buildingMaterials.push(material);
   const renderMeshes = [];
   const fadeMaterials = [material];
+  const hideBeacon = mutedLeftTowerKeys.has(getBuildingKey(config));
 
   const tower = new THREE.Mesh(
     new THREE.BoxGeometry(config.width, config.height, config.depth),
@@ -734,19 +879,45 @@ const createBuilding = (config) => {
     renderMeshes.push(core);
   }
 
-  const beaconMaterial = redBeaconMaterial.clone();
-  beaconMaterial.transparent = true;
-  beaconMaterial.opacity = 1;
-  fadeMaterials.push(beaconMaterial);
-  const roofBeacon = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), beaconMaterial);
-  roofBeacon.position.set(0, config.height + config.capHeight + 0.18, 0);
-  group.add(roofBeacon);
-  renderMeshes.push(roofBeacon);
+  let roofGlow = null;
+  let beaconLabel = null;
+  let beaconLabelMaterial = null;
 
-  const roofGlow = new THREE.PointLight("#ff4a73", customization.roofLightIntensity, 3.4, 2);
-  roofGlow.position.set(0, config.height + config.capHeight + 0.22, 0);
-  group.add(roofGlow);
-  roofLights.push(roofGlow);
+  if (!hideBeacon) {
+    const beaconMaterial = redBeaconMaterial.clone();
+    beaconMaterial.transparent = true;
+    beaconMaterial.opacity = 1;
+    fadeMaterials.push(beaconMaterial);
+    const roofBeacon = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), beaconMaterial);
+    roofBeacon.position.set(0, config.height + config.capHeight + 0.18, 0);
+    group.add(roofBeacon);
+    renderMeshes.push(roofBeacon);
+
+    roofGlow = new THREE.PointLight("#ff4a73", customization.roofLightIntensity, 3.4, 2);
+    roofGlow.position.set(0, config.height + config.capHeight + 0.22, 0);
+    group.add(roofGlow);
+    roofLights.push(roofGlow);
+
+    const beaconLabelTexture = createBeaconLabelTexture(
+      beaconLabelWords[buildings.length % beaconLabelWords.length],
+      "#ffffff"
+    );
+    beaconLabel = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: beaconLabelTexture,
+        transparent: true,
+        depthWrite: false,
+        opacity: 1,
+        color: "#ffffff"
+      })
+    );
+    beaconLabel.position.set(0, config.height + config.capHeight + 0.44, 0);
+    beaconLabel.scale.set(1.16, 0.28, 1);
+    group.add(beaconLabel);
+    renderMeshes.push(beaconLabel);
+    fadeMaterials.push(beaconLabel.material);
+    beaconLabelMaterial = beaconLabel.material;
+  }
 
   group.position.set(config.x, 0, config.z);
   group.rotation.y = config.rotationY;
@@ -767,11 +938,13 @@ const createBuilding = (config) => {
     prominence: config.height + Math.max(0, -config.z),
     renderMeshes,
     fadeMaterials,
-    roofPointLights: [roofGlow],
+    roofPointLights: roofGlow ? [roofGlow] : [],
     localBounds,
     worldBounds: new THREE.Box3(),
     currentOpacity: 1,
-    targetOpacity: 1
+    targetOpacity: 1,
+    beaconLabel,
+    beaconLabelMaterial
   });
   occludableBuildings.push(buildings[buildings.length - 1]);
 };
@@ -795,6 +968,14 @@ const createGround = () => {
   gridHelper.material.opacity = 0.12;
   gridHelper.material.transparent = true;
   city.add(gridHelper);
+};
+
+const updateBeaconLabels = () => {
+  occludableBuildings.forEach((entry) => {
+    if (!entry.beaconLabel) {
+      return;
+    }
+  });
 };
 
 const createParticles = () => {
@@ -936,11 +1117,9 @@ const setBillboardVideoState = (target, active) => {
     target.screenMaterial.map = target.videoTexture;
     target.screenMaterial.emissiveMap = target.videoTexture;
     target.screenMaterial.needsUpdate = true;
-    target.video.play().catch(() => {});
     return;
   }
 
-  target.video.pause();
   target.screenMaterial.map = target.posterTexture;
   target.screenMaterial.emissiveMap = target.posterTexture;
   target.screenMaterial.needsUpdate = true;
@@ -1064,7 +1243,7 @@ const updateOverviewMotion = () => {
   }
 
   const lateralOffset = -pointer.x * customization.rotateYStrength * 0.82;
-  const verticalOffset = -pointer.y * customization.rotateXStrength * 0.192;
+  const verticalOffset = pointer.y * customization.rotateXStrength * 1.56;
   const targetRotationY = -pointer.x * customization.rotateYStrength * 0.108;
   const targetRotationX = THREE.MathUtils.clamp(
     0.22 - pointer.y * customization.rotateXStrength * 0.042,
@@ -1079,7 +1258,7 @@ const updateOverviewMotion = () => {
   );
   cameraState.goalTarget.set(
     cameraState.baseTarget.x + lateralOffset * 0.12,
-    cameraState.baseTarget.y + verticalOffset * 0.28,
+    cameraState.baseTarget.y + verticalOffset * 0.34,
     cameraState.baseTarget.z
   );
 
@@ -1087,6 +1266,38 @@ const updateOverviewMotion = () => {
   city.rotation.x += (targetRotationX - city.rotation.x) * customization.rotationLerp;
   settledRotationY = city.rotation.y;
   settledRotationX = city.rotation.x;
+};
+
+const updateIntroParallax = () => {
+  if (!introOverlayText || introHidden) {
+    return;
+  }
+
+  const lateralOffset = -pointer.x * customization.rotateYStrength * 0.82;
+  const offsetX = lateralOffset * -3.1;
+  const offsetY = 0;
+  introOverlayText.style.transform = `translate3d(${offsetX}px, ${offsetY}px, 0)`;
+};
+
+const updateIntroReturn = () => {
+  if (!introHidden) {
+    homeIdleStartedAt = 0;
+    return;
+  }
+
+  if (selectedBillboard || aboutOpen) {
+    homeIdleStartedAt = 0;
+    return;
+  }
+
+  if (!homeIdleStartedAt) {
+    homeIdleStartedAt = performance.now();
+    return;
+  }
+
+  if (performance.now() - homeIdleStartedAt >= introReturnDelay) {
+    restoreIntro();
+  }
 };
 
 const updateRoadLines = (elapsed) => {
@@ -1108,9 +1319,92 @@ const updateRoadLines = (elapsed) => {
   });
   smoke.rotation.y += 0.003;
   smoke.rotation.x += 0.0015;
+
   smoke.children.forEach((particle, index) => {
     particle.position.y += Math.sin(elapsed * 0.8 + index) * 0.0006;
   });
+};
+
+const updatePlayerOverlay = () => {
+  if (!playerOverlay || !playerElement) {
+    return;
+  }
+
+  if (!selectedBillboard || aboutOpen) {
+    playerOverlay.setAttribute("aria-hidden", "true");
+    if (!playerElement.paused) {
+      playerElement.pause();
+    }
+    if (playerElement.dataset.src) {
+      playerElement.removeAttribute("src");
+      playerElement.dataset.src = "";
+      playerElement.load();
+    }
+    return;
+  }
+
+  const target = billboardTargets.find(({ billboard }) => billboard === selectedBillboard);
+  if (!target) {
+    playerOverlay.setAttribute("aria-hidden", "true");
+    return;
+  }
+
+  const cameraReady =
+    cameraState.currentPosition.distanceTo(cameraState.goalPosition) < 0.34 &&
+    cameraState.currentTarget.distanceTo(cameraState.goalTarget) < 0.26;
+
+  if (!cameraReady) {
+    playerOverlay.setAttribute("aria-hidden", "true");
+    if (!playerElement.paused) {
+      playerElement.pause();
+    }
+    if (playerElement.dataset.src) {
+      playerElement.removeAttribute("src");
+      playerElement.dataset.src = "";
+      playerElement.load();
+    }
+    return;
+  }
+
+  const width = target.billboard.geometry.parameters.width * target.billboard.scale.x;
+  const height = target.billboard.geometry.parameters.height * target.billboard.scale.y;
+  const corners = [
+    [-width / 2, -height / 2, 0.032],
+    [width / 2, -height / 2, 0.032],
+    [width / 2, height / 2, 0.032],
+    [-width / 2, height / 2, 0.032]
+  ];
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  corners.forEach(([x, y, z], index) => {
+    playerCornerPoints[index].set(x, y, z).applyMatrix4(target.billboard.matrixWorld).project(camera);
+    const screenX = (playerCornerPoints[index].x * 0.5 + 0.5) * window.innerWidth;
+    const screenY = (-playerCornerPoints[index].y * 0.5 + 0.5) * window.innerHeight;
+    minX = Math.min(minX, screenX);
+    maxX = Math.max(maxX, screenX);
+    minY = Math.min(minY, screenY);
+    maxY = Math.max(maxY, screenY);
+  });
+
+  const insetX = (maxX - minX) * 0.12;
+  const insetY = (maxY - minY) * 0.12;
+  playerOverlay.style.left = `${minX + insetX}px`;
+  playerOverlay.style.top = `${minY + insetY}px`;
+  playerOverlay.style.width = `${Math.max(120, maxX - minX - insetX * 2)}px`;
+  playerOverlay.style.height = `${Math.max(80, maxY - minY - insetY * 2)}px`;
+  playerOverlay.setAttribute("aria-hidden", "false");
+
+  const nextSrc = target.billboard.userData.project.videoSrc;
+  if (playerElement.dataset.src !== nextSrc) {
+    playerElement.dataset.src = nextSrc;
+    playerElement.src = nextSrc;
+    playerElement.currentTime = 0;
+    playerElement.play().catch(() => {});
+  }
 };
 
 const applyCustomization = () => {
@@ -1171,21 +1465,18 @@ const onTouch = (event) => {
   pointer.y = -(event.touches[0].pageY / window.innerHeight) * 2 + 1;
 };
 
-const resumeVideos = () => {
-  sharedVideoAssets.forEach(({ video }) => {
-    video.play().catch(() => {});
-  });
-};
-
 window.addEventListener("mousemove", onMouseMove, false);
 window.addEventListener("touchstart", onTouch, false);
 window.addEventListener("touchmove", onTouch, false);
-window.addEventListener("pointerdown", resumeVideos, { once: true });
 
 canvas.addEventListener("click", () => {
+  if (aboutOpen) {
+    return;
+  }
   raycaster.setFromCamera(pointer, camera);
   const hit = raycaster.intersectObjects(billboardMeshes)[0];
   if (hit) {
+    dismissIntro();
     selectedBillboard = hit.object;
     frameSelection(hit.object);
   }
@@ -1198,7 +1489,28 @@ panelClose.addEventListener("click", (event) => {
   frameSelection(null);
 });
 
+aboutTrigger?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  dismissIntro();
+  if (!aboutOpen && selectedBillboard) {
+    selectedBillboard = null;
+    frameSelection(null);
+  }
+  setAboutOpen(!aboutOpen);
+});
+
+aboutClose?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setAboutOpen(false);
+});
+
 window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && aboutOpen) {
+    setAboutOpen(false);
+    return;
+  }
   if (event.key === "Escape" && selectedBillboard) {
     selectedBillboard = null;
     frameSelection(null);
@@ -1215,28 +1527,37 @@ window.addEventListener("resize", () => {
 init();
 updatePanel(null);
 refreshVideoTargets();
-resumeVideos();
 applyCustomization();
+setAboutOpen(false);
+restoreIntro();
 
 const animate = () => {
   const elapsed = clock.getElapsedTime();
   requestAnimationFrame(animate);
 
   updateOverviewMotion();
+  updateIntroReturn();
+  updateIntroParallax();
   updateRoadLines(elapsed);
 
-  raycaster.setFromCamera(pointer, camera);
-  const hit = raycaster.intersectObjects(billboardMeshes)[0];
-  setHover(hit?.object ?? null);
-  updateLabelPosition();
+  if (!selectedBillboard && !aboutOpen) {
+    raycaster.setFromCamera(pointer, camera);
+    const hit = raycaster.intersectObjects(billboardMeshes)[0];
+    setHover(hit?.object ?? null);
+    updateLabelPosition();
+  } else {
+    setHover(null);
+  }
   updateBillboardFeedback(elapsed);
 
   cameraState.currentPosition.lerp(cameraState.goalPosition, 0.08);
   cameraState.currentTarget.lerp(cameraState.goalTarget, 0.1);
   camera.position.copy(cameraState.currentPosition);
   camera.lookAt(cameraState.currentTarget);
+  updateBeaconLabels();
   updateFocusedOcclusionTargets();
   updateBuildingOcclusion();
+  updatePlayerOverlay();
 
   renderer.render(scene, camera);
 };
