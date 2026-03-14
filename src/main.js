@@ -61,8 +61,8 @@ scene.add(ambientLight);
 const frontSpotLight = new THREE.SpotLight(0xffffff, 20, 14);
 frontSpotLight.position.set(5, 5, 5);
 frontSpotLight.castShadow = renderer.shadowMap.enabled;
-frontSpotLight.shadow.mapSize.width = 2048;
-frontSpotLight.shadow.mapSize.height = 2048;
+frontSpotLight.shadow.mapSize.width = 1024;
+frontSpotLight.shadow.mapSize.height = 1024;
 frontSpotLight.penumbra = 0.1;
 city.add(frontSpotLight);
 
@@ -83,20 +83,35 @@ const occlusionDirection = new THREE.Vector3();
 const occlusionCenter = new THREE.Vector3();
 const occlusionRay = new THREE.Ray();
 const occlusionHit = new THREE.Vector3();
+const occlusionBox = new THREE.Box3();
 const occlusionRight = new THREE.Vector3();
 const occlusionUp = new THREE.Vector3();
 const occlusionTargetPoint = new THREE.Vector3();
+const cameraSpaceVector = new THREE.Vector3();
+const selectedScreenRect = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+const buildingRect = { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+const billboardCornerPoints = [0, 1, 2, 3].map(() => new THREE.Vector3());
+const boxCornerPoints = Array.from({ length: 8 }, () => new THREE.Vector3());
 const occlusionOffsets = [
   [0, 0],
+  [-0.74, 0],
+  [0.74, 0],
+  [0, -0.74],
+  [0, 0.74],
   [-0.46, -0.46],
   [0.46, -0.46],
   [-0.46, 0.46],
-  [0.46, 0.46]
+  [0.46, 0.46],
+  [-0.74, -0.74],
+  [0.74, -0.74],
+  [-0.74, 0.74],
+  [0.74, 0.74]
 ];
 
 const billboardMeshes = [];
 const billboardTargets = [];
 const buildings = [];
+const occludableBuildings = [];
 const buildingMaterials = [];
 const roofLights = [];
 const sharedVideoAssets = new Map();
@@ -104,6 +119,8 @@ let hoveredBillboard = null;
 let selectedBillboard = null;
 let settledRotationY = 0;
 let settledRotationX = 0.18;
+let occlusionFocused = false;
+let occlusionSelection = null;
 
 const cameraState = {
   currentPosition: camera.position.clone(),
@@ -383,15 +400,42 @@ const setBuildingVisibilityTarget = (entry, targetOpacity) => {
   }
 };
 
+const projectPointsToRect = (points, cameraRef, targetRect) => {
+  targetRect.minX = Infinity;
+  targetRect.maxX = -Infinity;
+  targetRect.minY = Infinity;
+  targetRect.maxY = -Infinity;
+
+  points.forEach((point) => {
+    focusVector.copy(point).project(cameraRef);
+    targetRect.minX = Math.min(targetRect.minX, focusVector.x);
+    targetRect.maxX = Math.max(targetRect.maxX, focusVector.x);
+    targetRect.minY = Math.min(targetRect.minY, focusVector.y);
+    targetRect.maxY = Math.max(targetRect.maxY, focusVector.y);
+  });
+};
+
+const rectsOverlap = (a, b, margin = 0.04) =>
+  a.maxX >= b.minX - margin &&
+  a.minX <= b.maxX + margin &&
+  a.maxY >= b.minY - margin &&
+  a.minY <= b.maxY + margin;
+
 const addScreenToBuilding = (entry, project) => {
   const asset = makeVideoAsset(project);
   const posterTexture = createPosterTexture(project);
   const width = entry.screenWidth;
   const height = entry.screenHeight;
   const mount = getScreenMount(entry);
+  const extraScreenYOffsetBySlug = {
+    "adobe-spectrum-night": 0.72,
+    "beats-midnight-cut": 1.02
+  };
+  const extraScreenYOffset = extraScreenYOffsetBySlug[project.slug] ?? 0;
 
   const screenMount = new THREE.Group();
   screenMount.position.copy(mount.position);
+  screenMount.position.y += extraScreenYOffset;
   screenMount.rotation.y = mount.rotationY;
   entry.group.add(screenMount);
 
@@ -479,18 +523,31 @@ const updateSelectedFrame = () => {
 };
 
 const updateFocusedOcclusionTargets = () => {
-  const buildingEntries = buildings.filter((entry) => entry.group);
+  const buildingEntries = occludableBuildings;
 
   if (!selectedBillboard) {
+    if (!occlusionFocused) {
+      return;
+    }
     buildingEntries.forEach((entry) => {
+      entry.occlusionLocked = false;
       setBuildingVisibilityTarget(entry, 1);
     });
+    occlusionFocused = false;
+    occlusionSelection = null;
     return;
   }
 
   const selectedEntry = selectedBillboard.userData.buildingEntry;
   if (!selectedEntry) {
     return;
+  }
+  occlusionFocused = true;
+  if (occlusionSelection !== selectedBillboard) {
+    occlusionSelection = selectedBillboard;
+    buildingEntries.forEach((entry) => {
+      entry.occlusionLocked = false;
+    });
   }
 
   selectedBillboard.getWorldPosition(tempVector);
@@ -503,17 +560,67 @@ const updateFocusedOcclusionTargets = () => {
   const halfWidth = (geometryWidth * selectedBillboard.scale.x) / 2;
   const halfHeight = (geometryHeight * selectedBillboard.scale.y) / 2;
 
+  billboardCornerPoints[0]
+    .copy(tempVector)
+    .addScaledVector(occlusionRight, -halfWidth)
+    .addScaledVector(occlusionUp, -halfHeight);
+  billboardCornerPoints[1]
+    .copy(tempVector)
+    .addScaledVector(occlusionRight, halfWidth)
+    .addScaledVector(occlusionUp, -halfHeight);
+  billboardCornerPoints[2]
+    .copy(tempVector)
+    .addScaledVector(occlusionRight, -halfWidth)
+    .addScaledVector(occlusionUp, halfHeight);
+  billboardCornerPoints[3]
+    .copy(tempVector)
+    .addScaledVector(occlusionRight, halfWidth)
+    .addScaledVector(occlusionUp, halfHeight);
+  projectPointsToRect(billboardCornerPoints, camera, selectedScreenRect);
+  let selectedClosestDepth = -Infinity;
+  billboardCornerPoints.forEach((point) => {
+    const depth = cameraSpaceVector.copy(point).applyMatrix4(camera.matrixWorldInverse).z;
+    selectedClosestDepth = Math.max(selectedClosestDepth, depth);
+  });
+
   buildingEntries.forEach((entry) => {
     if (entry === selectedEntry) {
+      entry.occlusionLocked = false;
       setBuildingVisibilityTarget(entry, 1);
       return;
     }
 
     entry.worldBounds.copy(entry.localBounds).applyMatrix4(entry.group.matrixWorld);
-    entry.worldBounds.getCenter(occlusionCenter);
+    occlusionBox.copy(entry.worldBounds).expandByScalar(0.28);
+    occlusionBox.getCenter(occlusionCenter);
     let isBlocker = false;
 
+    boxCornerPoints[0].set(occlusionBox.min.x, occlusionBox.min.y, occlusionBox.min.z);
+    boxCornerPoints[1].set(occlusionBox.min.x, occlusionBox.min.y, occlusionBox.max.z);
+    boxCornerPoints[2].set(occlusionBox.min.x, occlusionBox.max.y, occlusionBox.min.z);
+    boxCornerPoints[3].set(occlusionBox.min.x, occlusionBox.max.y, occlusionBox.max.z);
+    boxCornerPoints[4].set(occlusionBox.max.x, occlusionBox.min.y, occlusionBox.min.z);
+    boxCornerPoints[5].set(occlusionBox.max.x, occlusionBox.min.y, occlusionBox.max.z);
+    boxCornerPoints[6].set(occlusionBox.max.x, occlusionBox.max.y, occlusionBox.min.z);
+    boxCornerPoints[7].set(occlusionBox.max.x, occlusionBox.max.y, occlusionBox.max.z);
+    projectPointsToRect(boxCornerPoints, camera, buildingRect);
+    let closestBuildingDepth = -Infinity;
+    boxCornerPoints.forEach((point) => {
+      const depth = cameraSpaceVector.copy(point).applyMatrix4(camera.matrixWorldInverse).z;
+      closestBuildingDepth = Math.max(closestBuildingDepth, depth);
+    });
+
+    if (
+      closestBuildingDepth > selectedClosestDepth - 0.04 &&
+      rectsOverlap(buildingRect, selectedScreenRect, 0.08)
+    ) {
+      isBlocker = true;
+    }
+
     for (const [offsetX, offsetY] of occlusionOffsets) {
+      if (isBlocker) {
+        break;
+      }
       occlusionTargetPoint
         .copy(tempVector)
         .addScaledVector(occlusionRight, halfWidth * offsetX)
@@ -537,7 +644,7 @@ const updateFocusedOcclusionTargets = () => {
         projectedDistance > 0.2 && projectedDistance < focusDistance - 0.12;
       occlusionRay.origin.copy(occlusionLine.start);
       occlusionRay.direction.copy(occlusionDirection);
-      const hitPoint = occlusionRay.intersectBox(entry.worldBounds, occlusionHit);
+      const hitPoint = occlusionRay.intersectBox(occlusionBox, occlusionHit);
       const hitDistance = hitPoint ? hitPoint.distanceTo(occlusionLine.start) : Infinity;
 
       if (isBetweenCameraAndScreen && hitDistance < focusDistance - 0.12) {
@@ -546,14 +653,15 @@ const updateFocusedOcclusionTargets = () => {
       }
     }
 
-    setBuildingVisibilityTarget(entry, isBlocker ? 0 : 1);
+    if (isBlocker) {
+      entry.occlusionLocked = true;
+    }
+    setBuildingVisibilityTarget(entry, entry.occlusionLocked ? 0 : 1);
   });
 };
 
 const updateBuildingOcclusion = () => {
-  buildings
-    .filter((entry) => entry.group)
-    .forEach((entry) => {
+  occludableBuildings.forEach((entry) => {
       entry.currentOpacity = THREE.MathUtils.lerp(
         entry.currentOpacity,
         entry.targetOpacity,
@@ -569,7 +677,6 @@ const updateBuildingOcclusion = () => {
       entry.fadeMaterials.forEach((material) => {
         material.opacity = entry.currentOpacity;
         material.depthWrite = entry.currentOpacity > 0.08;
-        material.needsUpdate = true;
       });
 
       entry.roofPointLights.forEach((light) => {
@@ -666,6 +773,7 @@ const createBuilding = (config) => {
     currentOpacity: 1,
     targetOpacity: 1
   });
+  occludableBuildings.push(buildings[buildings.length - 1]);
 };
 
 const createGround = () => {
@@ -695,7 +803,7 @@ const createParticles = () => {
     side: THREE.DoubleSide
   });
   const particularGeometry = new THREE.CircleGeometry(0.015, 4);
-  for (let i = 0; i < 260; i += 1) {
+  for (let i = 0; i < 160; i += 1) {
     const particle = new THREE.Mesh(particularGeometry, particularMaterial);
     particle.position.set(mathRandom(6), mathRandom(6), mathRandom(6));
     particle.rotation.set(mathRandom(), mathRandom(), mathRandom());
@@ -706,7 +814,7 @@ const createParticles = () => {
 
 const createRoadLines = () => {
   const colors = [0xffff66, 0xffffff, 0xff8e5c];
-  for (let i = 0; i < 28; i += 1) {
+  for (let i = 0; i < 18; i += 1) {
     const line = new THREE.Mesh(
       new THREE.BoxGeometry(0.8, 0.03, 0.05),
       new THREE.MeshToonMaterial({ color: colors[i % colors.length] })
@@ -773,19 +881,27 @@ const cityLayout = cityLayoutSeed.map((config) => {
   return nextConfig;
 });
 
+const getHomeScreenScore = (entry) => {
+  const forwardness = entry.z * 2.4;
+  const centerBias = -Math.abs(entry.x) * 0.35;
+  const heightBias = entry.height * 0.45;
+  const prominenceBias = entry.prominence * 0.25;
+  return forwardness + centerBias + heightBias + prominenceBias;
+};
+
 const init = () => {
   createGround();
   createParticles();
   createRoadLines();
   cityLayout.forEach(createBuilding);
 
-  buildings
-    .filter((entry) => entry.group)
-    .sort((a, b) => {
-      const radiusA = Math.hypot(a.x, a.z);
-      const radiusB = Math.hypot(b.x, b.z);
-      return radiusB - radiusA || b.height - a.height;
-    })
+  const sortedByVisibility = [...occludableBuildings].sort((a, b) => {
+    return getHomeScreenScore(b) - getHomeScreenScore(a) || b.height - a.height;
+  });
+  const hiddenHomeEntry = sortedByVisibility[sortedByVisibility.length - 1];
+
+  sortedByVisibility
+    .filter((entry) => entry !== hiddenHomeEntry)
     .forEach((entry, index) => {
       addScreenToBuilding(entry, projects[index % projects.length]);
     });
@@ -947,11 +1063,11 @@ const updateOverviewMotion = () => {
     return;
   }
 
-  const lateralOffset = -pointer.x * customization.rotateYStrength * 0.55;
-  const verticalOffset = -pointer.y * customization.rotateXStrength * 0.16;
-  const targetRotationY = -pointer.x * customization.rotateYStrength * 0.07;
+  const lateralOffset = -pointer.x * customization.rotateYStrength * 0.82;
+  const verticalOffset = -pointer.y * customization.rotateXStrength * 0.192;
+  const targetRotationY = -pointer.x * customization.rotateYStrength * 0.108;
   const targetRotationX = THREE.MathUtils.clamp(
-    0.22 - pointer.y * customization.rotateXStrength * 0.035,
+    0.22 - pointer.y * customization.rotateXStrength * 0.042,
     0.14,
     0.32
   );
@@ -1066,7 +1182,7 @@ window.addEventListener("touchstart", onTouch, false);
 window.addEventListener("touchmove", onTouch, false);
 window.addEventListener("pointerdown", resumeVideos, { once: true });
 
-window.addEventListener("click", () => {
+canvas.addEventListener("click", () => {
   raycaster.setFromCamera(pointer, camera);
   const hit = raycaster.intersectObjects(billboardMeshes)[0];
   if (hit) {
@@ -1075,7 +1191,9 @@ window.addEventListener("click", () => {
   }
 });
 
-panelClose.addEventListener("click", () => {
+panelClose.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
   selectedBillboard = null;
   frameSelection(null);
 });
@@ -1106,8 +1224,6 @@ const animate = () => {
 
   updateOverviewMotion();
   updateRoadLines(elapsed);
-  updateFocusedOcclusionTargets();
-  updateBuildingOcclusion();
 
   raycaster.setFromCamera(pointer, camera);
   const hit = raycaster.intersectObjects(billboardMeshes)[0];
@@ -1119,6 +1235,8 @@ const animate = () => {
   cameraState.currentTarget.lerp(cameraState.goalTarget, 0.1);
   camera.position.copy(cameraState.currentPosition);
   camera.lookAt(cameraState.currentTarget);
+  updateFocusedOcclusionTargets();
+  updateBuildingOcclusion();
 
   renderer.render(scene, camera);
 };
