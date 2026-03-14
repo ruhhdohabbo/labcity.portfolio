@@ -1,8 +1,15 @@
 import "./style.css";
 
 import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { projects } from "./projects.js";
+import {
+  SCENE_CONFIG_STORAGE_KEY,
+  cloneSceneConfig,
+  createDefaultSceneConfig,
+  normalizeSceneConfig
+} from "./sceneConfig.js";
 
 const canvas = document.querySelector(".scene");
 const label = document.querySelector(".project-label");
@@ -19,6 +26,82 @@ const hint = document.querySelector(".hint");
 const aboutTrigger = document.querySelector(".about-trigger");
 const aboutPanel = document.querySelector(".about-panel");
 const aboutClose = document.querySelector(".about-close");
+const customizeTrigger = document.querySelector(".customize-trigger");
+const customizePanel = document.querySelector(".customize-panel");
+const customizeClose = document.querySelector(".customize-close");
+const cameraYawInput = document.querySelector(".camera-yaw");
+const cameraPitchInput = document.querySelector(".camera-pitch");
+const cameraDistanceInput = document.querySelector(".camera-distance");
+const cameraFovInput = document.querySelector(".camera-fov");
+const cameraTargetXInput = document.querySelector(".camera-target-x");
+const cameraTargetYInput = document.querySelector(".camera-target-y");
+const cameraTargetZInput = document.querySelector(".camera-target-z");
+const cameraYawValue = document.querySelector(".camera-yaw-value");
+const cameraPitchValue = document.querySelector(".camera-pitch-value");
+const cameraDistanceValue = document.querySelector(".camera-distance-value");
+const cameraFovValue = document.querySelector(".camera-fov-value");
+const cameraPresetNameInput = document.querySelector(".camera-preset-name");
+const cameraDataOutput = document.querySelector(".camera-data-output");
+const editorModeSelect = document.querySelector(".editor-mode-select");
+const configExportButton = document.querySelector(".config-export");
+const configImportButton = document.querySelector(".config-import");
+const configResetButton = document.querySelector(".config-reset");
+const configImportInput = document.querySelector(".config-import-input");
+const cameraUseCurrentButton = document.querySelector(".camera-use-current");
+const cameraCopyDataButton = document.querySelector(".camera-copy-data");
+const buildingSelect = document.querySelector(".building-select");
+const buildingAddButton = document.querySelector(".building-add");
+const buildingDuplicateButton = document.querySelector(".building-duplicate");
+const buildingDeleteButton = document.querySelector(".building-delete");
+const buildingEnabledInput = document.querySelector(".building-enabled");
+const buildingXInput = document.querySelector(".building-x");
+const buildingZInput = document.querySelector(".building-z");
+const buildingRotationInput = document.querySelector(".building-rotation");
+const buildingWidthInput = document.querySelector(".building-width");
+const buildingDepthInput = document.querySelector(".building-depth");
+const buildingHeightInput = document.querySelector(".building-height");
+const buildingCapEnabledInput = document.querySelector(".building-cap-enabled");
+const buildingCapWidthInput = document.querySelector(".building-cap-width");
+const buildingCapDepthInput = document.querySelector(".building-cap-depth");
+const buildingCapHeightInput = document.querySelector(".building-cap-height");
+const buildingCoreEnabledInput = document.querySelector(".building-core-enabled");
+const buildingCoreWidthInput = document.querySelector(".building-core-width");
+const buildingCoreDepthInput = document.querySelector(".building-core-depth");
+const buildingCoreHeightInput = document.querySelector(".building-core-height");
+const buildingCoreOffsetXInput = document.querySelector(".building-core-offset-x");
+const buildingCoreOffsetZInput = document.querySelector(".building-core-offset-z");
+const buildingLabelEnabledInput = document.querySelector(".building-label-enabled");
+const buildingLabelTextInput = document.querySelector(".building-label-text");
+const buildingLabelColorInput = document.querySelector(".building-label-color");
+const buildingLabelOffsetYInput = document.querySelector(".building-label-offset-y");
+const buildingBeaconEnabledInput = document.querySelector(".building-beacon-enabled");
+const buildingBeaconColorInput = document.querySelector(".building-beacon-color");
+const buildingBeaconOffsetYInput = document.querySelector(".building-beacon-offset-y");
+const screenSelect = document.querySelector(".screen-select");
+const screenAddButton = document.querySelector(".screen-add");
+const screenDuplicateButton = document.querySelector(".screen-duplicate");
+const screenDeleteButton = document.querySelector(".screen-delete");
+const screenEnabledInput = document.querySelector(".screen-enabled");
+const screenProjectSelect = document.querySelector(".screen-project");
+const screenSideSelect = document.querySelector(".screen-side");
+const screenWidthInput = document.querySelector(".screen-width");
+const screenHeightInput = document.querySelector(".screen-height");
+const screenTopOffsetInput = document.querySelector(".screen-top-offset");
+const screenOffsetAlongInput = document.querySelector(".screen-offset-along");
+const screenOffsetOutwardInput = document.querySelector(".screen-offset-outward");
+const toolPreviewScreenButton = document.querySelector(".tool-preview-screen");
+const toolTopScreenButton = document.querySelector(".tool-top-screen");
+const toolAlignScreenButton = document.querySelector(".tool-align-screen");
+const sceneBgColorInput = document.querySelector(".scene-bg-color");
+const sceneFogColorInput = document.querySelector(".scene-fog-color");
+const sceneFogNearInput = document.querySelector(".scene-fog-near");
+const sceneFogFarInput = document.querySelector(".scene-fog-far");
+const sceneAmbientInput = document.querySelector(".scene-ambient");
+const sceneFrontLightInput = document.querySelector(".scene-front-light");
+const sceneBackLightInput = document.querySelector(".scene-back-light");
+const toolFaceBuildingButton = document.querySelector(".tool-face-building");
+const toolRebalanceHeightsButton = document.querySelector(".tool-rebalance-heights");
+const toolDistributeRingButton = document.querySelector(".tool-distribute-ring");
 const introOverlay = document.querySelector(".intro-overlay");
 const introOverlayText = document.querySelector(".intro-overlay-text");
 const playerOverlay = document.querySelector(".video-player-overlay");
@@ -54,6 +137,21 @@ const camera = new THREE.PerspectiveCamera(
   500
 );
 camera.position.set(0.1, 4.7, 16.7);
+const orbitControls = new OrbitControls(camera, canvas);
+orbitControls.enabled = false;
+orbitControls.enableDamping = true;
+orbitControls.enablePan = true;
+orbitControls.enableZoom = true;
+orbitControls.enableRotate = true;
+orbitControls.addEventListener("change", () => {
+  if (editorState.mode !== "edit") {
+    return;
+  }
+  syncSceneConfigCameraFromOrbitControls();
+  interactionDirty = true;
+  labelDirty = true;
+  overlayDirty = true;
+});
 
 const city = new THREE.Group();
 const smoke = new THREE.Group();
@@ -118,12 +216,19 @@ const occlusionOffsets = [
 
 const billboardMeshes = [];
 const interactiveMeshes = [];
+const buildingSelectMeshes = [];
 const billboardTargets = [];
 const buildings = [];
+const roadLines = [];
 const occludableBuildings = [];
 const buildingMaterials = [];
 const roofLights = [];
+const smokeParticles = [];
 const sharedVideoAssets = new Map();
+const posterTextureCache = new Map();
+const labelTextureCache = new Map();
+const buildingEntriesById = new Map();
+const screenTargetsByKey = new Map();
 let hoveredBillboard = null;
 let selectedBillboard = null;
 let settledRotationY = 0;
@@ -131,9 +236,28 @@ let settledRotationX = 0.18;
 let occlusionFocused = false;
 let occlusionSelection = null;
 let aboutOpen = false;
+let customizeOpen = false;
 let introHidden = false;
 let homeIdleStartedAt = 0;
+let qualityMode = window.innerWidth < 900 ? "reduced" : "high";
+let interactionDirty = true;
+let labelDirty = true;
+let overlayDirty = true;
+let occlusionDirty = true;
+let resizeDirty = true;
+let smokePhase = 0;
 const introReturnDelay = 10000;
+const defaultSceneConfig = createDefaultSceneConfig(projects);
+let sceneConfig = cloneSceneConfig(defaultSceneConfig);
+const editorState = {
+  open: false,
+  mode: "browse",
+  selectedBuildingId: null,
+  selectedScreenId: null,
+  previewScreenKey: null
+};
+let sceneRebuildQueued = false;
+const cloneValue = (value) => JSON.parse(JSON.stringify(value));
 
 const cameraState = {
   currentPosition: camera.position.clone(),
@@ -153,7 +277,12 @@ const defaultCustomization = {
   cameraX: 0.1,
   cameraY: 4.7,
   cameraZ: 16.7,
+  cameraYaw: 0.34,
+  cameraPitch: 3.77,
+  cameraDistance: 16.74,
+  targetX: 0,
   targetY: 3.6,
+  targetZ: 0,
   rotateYStrength: 0.8,
   rotateXStrength: 0.38,
   rotationLerp: 0.03,
@@ -182,6 +311,29 @@ const raisedScreenTowerOffsets = new Map([
 
 const mathRandom = (num = 8) => -Math.random() * num + Math.random() * num;
 const getBuildingKey = ({ x, z }) => `${x},${z}`;
+const radToDeg = (value) => (value * 180) / Math.PI;
+const degToRad = (value) => (value * Math.PI) / 180;
+
+const syncCameraCartesianFromOrbit = () => {
+  const yaw = degToRad(customization.cameraYaw);
+  const pitch = degToRad(customization.cameraPitch);
+  const horizontalDistance = Math.cos(pitch) * customization.cameraDistance;
+  customization.cameraX = customization.targetX + Math.sin(yaw) * horizontalDistance;
+  customization.cameraY = customization.targetY + Math.sin(pitch) * customization.cameraDistance;
+  customization.cameraZ = customization.targetZ + Math.cos(yaw) * customization.cameraDistance;
+};
+
+const syncCameraOrbitFromCartesian = () => {
+  const offsetX = customization.cameraX - customization.targetX;
+  const offsetY = customization.cameraY - customization.targetY;
+  const offsetZ = customization.cameraZ - customization.targetZ;
+  const distance = Math.max(0.001, Math.hypot(offsetX, offsetY, offsetZ));
+  customization.cameraDistance = distance;
+  customization.cameraYaw = radToDeg(Math.atan2(offsetX, offsetZ));
+  customization.cameraPitch = radToDeg(Math.asin(offsetY / distance));
+};
+
+syncCameraOrbitFromCartesian();
 
 const dismissIntro = () => {
   if (introHidden) {
@@ -208,6 +360,162 @@ const setAboutOpen = (open) => {
     aboutPanel.setAttribute("aria-hidden", open ? "false" : "true");
   }
   aboutTrigger?.setAttribute("aria-expanded", open ? "true" : "false");
+  interactionDirty = true;
+  overlayDirty = true;
+  occlusionDirty = true;
+};
+
+const setCustomizeOpen = (open) => {
+  customizeOpen = open;
+  editorState.open = open;
+  if (customizePanel) {
+    customizePanel.hidden = !open;
+    customizePanel.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+  customizeTrigger?.setAttribute("aria-expanded", open ? "true" : "false");
+  interactionDirty = true;
+  labelDirty = true;
+  if (open) {
+    renderEditorControls();
+  }
+};
+
+const updateQualityMode = () => {
+  qualityMode = window.innerWidth < 900 ? "reduced" : "high";
+  renderer.shadowMap.enabled = qualityMode === "high" && window.innerWidth > 800;
+  frontSpotLight.castShadow = renderer.shadowMap.enabled;
+};
+
+const saveSceneConfigToStorage = () => {
+  sceneConfig.meta.updatedAt = new Date().toISOString();
+  window.localStorage.setItem(SCENE_CONFIG_STORAGE_KEY, JSON.stringify(sceneConfig));
+};
+
+const loadSceneConfigFromStorage = () => {
+  try {
+    const raw = window.localStorage.getItem(SCENE_CONFIG_STORAGE_KEY);
+    if (!raw) {
+      return cloneSceneConfig(defaultSceneConfig);
+    }
+    return normalizeSceneConfig(JSON.parse(raw), projects);
+  } catch {
+    return cloneSceneConfig(defaultSceneConfig);
+  }
+};
+
+const findProjectBySlug = (slug) => projects.find((project) => project.slug === slug) ?? projects[0];
+const getScreenKey = (buildingId, screenId) => `${buildingId}:${screenId}`;
+
+const applySceneConfigToCustomization = () => {
+  customization.bgColor = sceneConfig.scene.bgColor;
+  customization.fogColor = sceneConfig.scene.fogColor;
+  customization.fogNear = sceneConfig.scene.fogNear;
+  customization.fogFar = sceneConfig.scene.fogFar;
+  customization.ambientIntensity = sceneConfig.scene.ambientIntensity;
+  customization.frontLightIntensity = sceneConfig.scene.frontLightIntensity;
+  customization.backLightIntensity = sceneConfig.scene.backLightIntensity;
+  customization.roofLightIntensity = sceneConfig.scene.roofLightIntensity;
+  customization.buildingColor = sceneConfig.scene.buildingColor;
+  customization.buildingRoughness = sceneConfig.scene.buildingRoughness;
+  customization.buildingMetalness = sceneConfig.scene.buildingMetalness;
+  customization.buildingClearcoat = sceneConfig.scene.buildingClearcoat;
+  customization.buildingClearcoatRoughness = sceneConfig.scene.buildingClearcoatRoughness;
+  customization.buildingEnvMapIntensity = sceneConfig.scene.buildingEnvMapIntensity;
+  customization.screenLightIntensity = sceneConfig.scene.screenLightIntensity;
+  customization.screenEmissiveIntensity = sceneConfig.scene.screenEmissiveIntensity;
+  customization.selectedScale = sceneConfig.scene.selectedScale;
+  customization.cameraFov = sceneConfig.camera.fov;
+  customization.cameraYaw = sceneConfig.camera.orbitYaw;
+  customization.cameraPitch = sceneConfig.camera.orbitPitch;
+  customization.cameraDistance = sceneConfig.camera.orbitDistance;
+  customization.targetX = sceneConfig.camera.target.x;
+  customization.targetY = sceneConfig.camera.target.y;
+  customization.targetZ = sceneConfig.camera.target.z;
+  customization.cameraX = customization.targetX;
+  customization.cameraY = customization.targetY;
+  customization.cameraZ = customization.targetZ + customization.cameraDistance;
+  syncCameraCartesianFromOrbit();
+};
+
+const syncOrbitControlsFromSceneConfig = () => {
+  orbitControls.target.set(
+    sceneConfig.camera.target.x,
+    sceneConfig.camera.target.y,
+    sceneConfig.camera.target.z
+  );
+  const yaw = degToRad(sceneConfig.camera.orbitYaw);
+  const pitch = degToRad(sceneConfig.camera.orbitPitch);
+  const horizontalDistance = Math.cos(pitch) * sceneConfig.camera.orbitDistance;
+  camera.position.set(
+    sceneConfig.camera.target.x + Math.sin(yaw) * horizontalDistance,
+    sceneConfig.camera.target.y + Math.sin(pitch) * sceneConfig.camera.orbitDistance,
+    sceneConfig.camera.target.z + Math.cos(yaw) * sceneConfig.camera.orbitDistance
+  );
+  orbitControls.update();
+};
+
+const syncSceneConfigCameraFromOrbitControls = () => {
+  const offsetX = camera.position.x - orbitControls.target.x;
+  const offsetY = camera.position.y - orbitControls.target.y;
+  const offsetZ = camera.position.z - orbitControls.target.z;
+  const distance = Math.max(0.001, Math.hypot(offsetX, offsetY, offsetZ));
+  sceneConfig.camera.orbitDistance = distance;
+  sceneConfig.camera.orbitYaw = radToDeg(Math.atan2(offsetX, offsetZ));
+  sceneConfig.camera.orbitPitch = radToDeg(Math.asin(offsetY / distance));
+  sceneConfig.camera.fov = camera.fov;
+  sceneConfig.camera.target.x = orbitControls.target.x;
+  sceneConfig.camera.target.y = orbitControls.target.y;
+  sceneConfig.camera.target.z = orbitControls.target.z;
+  applySceneConfigToCustomization();
+  syncCustomizeControls();
+  saveSceneConfigToStorage();
+};
+
+const syncCameraStateFromCurrentView = (target = null) => {
+  const nextTarget = target ?? orbitControls.target;
+  cameraState.currentPosition.copy(camera.position);
+  cameraState.goalPosition.copy(camera.position);
+  cameraState.currentTarget.copy(nextTarget);
+  cameraState.goalTarget.copy(nextTarget);
+  cameraState.basePosition.copy(camera.position);
+  cameraState.baseTarget.copy(nextTarget);
+};
+
+const updateOrbitControlsEnabledState = () => {
+  orbitControls.enabled = editorState.mode === "edit" && !editorState.previewScreenKey;
+};
+
+const clearEditorPreview = () => {
+  editorState.previewScreenKey = null;
+  selectedBillboard = null;
+  frameSelection(null);
+  updateOrbitControlsEnabledState();
+  if (editorState.mode === "edit") {
+    syncOrbitControlsFromSceneConfig();
+    syncCameraStateFromCurrentView();
+  }
+};
+
+const setEditorMode = (mode) => {
+  editorState.mode = mode;
+  sceneConfig.camera.mode = mode;
+  document.body.dataset.editorMode = mode;
+  if (mode === "edit") {
+    clearEditorPreview();
+    syncOrbitControlsFromSceneConfig();
+    syncCameraStateFromCurrentView();
+    frameSelection(null);
+  } else {
+    editorState.previewScreenKey = null;
+    applySceneConfigToCustomization();
+    applyCustomization();
+  }
+  updateOrbitControlsEnabledState();
+  interactionDirty = true;
+  labelDirty = true;
+  overlayDirty = true;
+  occlusionDirty = true;
+  saveSceneConfigToStorage();
 };
 
 const createFacadeTextures = () => {
@@ -305,6 +613,10 @@ const beaconLabelWords = [
 ];
 
 const createBeaconLabelTexture = (text, color) => {
+  const cacheKey = `${text}::${color}`;
+  if (labelTextureCache.has(cacheKey)) {
+    return labelTextureCache.get(cacheKey);
+  }
   const canvas = document.createElement("canvas");
   canvas.width = 768;
   canvas.height = 192;
@@ -313,10 +625,10 @@ const createBeaconLabelTexture = (text, color) => {
   const labelText = text.toUpperCase();
   let fontSize = 82;
   const horizontalPadding = 56;
-  context.font = `700 ${fontSize}px Inter`;
+  context.font = `700 ${fontSize}px Inter, Arial, Helvetica, sans-serif`;
   while (context.measureText(labelText).width > canvas.width - horizontalPadding * 2 && fontSize > 44) {
     fontSize -= 4;
-    context.font = `700 ${fontSize}px Inter`;
+    context.font = `700 ${fontSize}px Inter, Arial, Helvetica, sans-serif`;
   }
   context.textAlign = "center";
   context.textBaseline = "middle";
@@ -329,6 +641,7 @@ const createBeaconLabelTexture = (text, color) => {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
+  labelTextureCache.set(cacheKey, texture);
   return texture;
 };
 
@@ -425,6 +738,9 @@ const makeVideoAsset = (project) => {
 };
 
 const createPosterTexture = (project) => {
+  if (posterTextureCache.has(project.slug)) {
+    return posterTextureCache.get(project.slug);
+  }
   const surface = document.createElement("canvas");
   surface.width = 640;
   surface.height = 360;
@@ -452,6 +768,7 @@ const createPosterTexture = (project) => {
 
   const texture = new THREE.CanvasTexture(surface);
   texture.colorSpace = THREE.SRGBColorSpace;
+  posterTextureCache.set(project.slug, texture);
   return texture;
 };
 
@@ -676,6 +993,19 @@ const updateSelectedFrame = () => {
 
 const updateFocusedOcclusionTargets = () => {
   const buildingEntries = occludableBuildings;
+
+  if (aboutOpen) {
+    if (!occlusionFocused) {
+      return;
+    }
+    buildingEntries.forEach((entry) => {
+      entry.occlusionLocked = false;
+      setBuildingVisibilityTarget(entry, 1);
+    });
+    occlusionFocused = false;
+    occlusionSelection = null;
+    return;
+  }
 
   if (!selectedBillboard) {
     if (!occlusionFocused) {
@@ -983,6 +1313,24 @@ const updateBeaconLabels = () => {
     if (!entry.beaconLabel) {
       return;
     }
+
+    const isSelectedBuilding = editorState.selectedBuildingId === entry.id;
+    const isHovered = hoveredBillboard?.userData?.buildingId === entry.id;
+    const targetColor = new THREE.Color(
+      isSelectedBuilding ? "#ffdf68" : entry.config.label.color || "#ffffff"
+    );
+    const scale = isSelectedBuilding ? 1.18 : isHovered ? 1.08 : 1;
+    entry.beaconLabelMaterial.color.lerp(targetColor, 0.18);
+    entry.beaconLabel.scale.lerp(new THREE.Vector3(1.16 * scale, 0.28 * scale, 1), 0.18);
+
+    entry.roofPointLights.forEach((light) => {
+      const multiplier = isSelectedBuilding ? 1.55 : 1;
+      light.intensity = THREE.MathUtils.lerp(
+        light.intensity,
+        customization.roofLightIntensity * multiplier * entry.currentOpacity,
+        0.18
+      );
+    });
   });
 };
 
@@ -992,11 +1340,13 @@ const createParticles = () => {
     side: THREE.DoubleSide
   });
   const particularGeometry = new THREE.CircleGeometry(0.015, 4);
-  for (let i = 0; i < 160; i += 1) {
+  const particleCount = qualityMode === "reduced" ? 96 : 160;
+  for (let i = 0; i < particleCount; i += 1) {
     const particle = new THREE.Mesh(particularGeometry, particularMaterial);
     particle.position.set(mathRandom(6), mathRandom(6), mathRandom(6));
     particle.rotation.set(mathRandom(), mathRandom(), mathRandom());
     smoke.add(particle);
+    smokeParticles.push(particle);
   }
   smoke.position.y = 2;
 };
@@ -1021,8 +1371,408 @@ const createRoadLines = () => {
       line.rotation.y = Math.PI / 2;
     }
     city.add(line);
-    buildings.push(line);
+    roadLines.push(line);
   }
+};
+
+const clearCollection = (collection) => {
+  collection.splice(0, collection.length);
+};
+
+const clearCityAuthoringState = () => {
+  clearCollection(billboardMeshes);
+  clearCollection(interactiveMeshes);
+  clearCollection(buildingSelectMeshes);
+  clearCollection(billboardTargets);
+  clearCollection(buildings);
+  clearCollection(occludableBuildings);
+  clearCollection(buildingMaterials);
+  clearCollection(roofLights);
+  buildingEntriesById.clear();
+  screenTargetsByKey.clear();
+  while (town.children.length) {
+    town.remove(town.children[0]);
+  }
+};
+
+const getScreenMountFromConfig = (entry, screenConfig) => {
+  const centerY = THREE.MathUtils.clamp(
+    entry.height - screenConfig.topOffset - screenConfig.height / 2,
+    screenConfig.height / 2 + 0.35,
+    entry.height - screenConfig.height / 2 - 0.05
+  );
+  const outward = screenConfig.offsetOutward ?? 0.03;
+  const along = screenConfig.offsetAlongFace ?? 0;
+  const side = screenConfig.side ?? "front";
+
+  if (side === "back") {
+    return {
+      normal: new THREE.Vector3(0, 0, -1),
+      position: new THREE.Vector3(along, centerY, -entry.depth / 2 - outward),
+      rotationY: Math.PI
+    };
+  }
+
+  if (side === "left") {
+    return {
+      normal: new THREE.Vector3(-1, 0, 0),
+      position: new THREE.Vector3(-entry.width / 2 - outward, centerY, along),
+      rotationY: -Math.PI / 2
+    };
+  }
+
+  if (side === "right") {
+    return {
+      normal: new THREE.Vector3(1, 0, 0),
+      position: new THREE.Vector3(entry.width / 2 + outward, centerY, along),
+      rotationY: Math.PI / 2
+    };
+  }
+
+  return {
+    normal: new THREE.Vector3(0, 0, 1),
+    position: new THREE.Vector3(along, centerY, entry.depth / 2 + outward),
+    rotationY: 0
+  };
+};
+
+const createScreenTargetFromConfig = (entry, screenConfig) => {
+  if (!screenConfig.enabled) {
+    return null;
+  }
+
+  const project = findProjectBySlug(screenConfig.projectSlug);
+  const asset = makeVideoAsset(project);
+  const posterTexture = createPosterTexture(project);
+  const mount = getScreenMountFromConfig(entry, screenConfig);
+
+  const screenMount = new THREE.Group();
+  screenMount.position.copy(mount.position);
+  screenMount.rotation.y = mount.rotationY;
+  entry.group.add(screenMount);
+
+  const bezel = new THREE.Mesh(
+    new THREE.BoxGeometry(screenConfig.width + 0.12, screenConfig.height + 0.12, 0.05),
+    new THREE.MeshStandardMaterial({
+      color: "#0d0e12",
+      roughness: 0.28,
+      metalness: 0.34,
+      emissive: "#16040a",
+      emissiveIntensity: 0.06,
+      transparent: true,
+      opacity: 1
+    })
+  );
+  screenMount.add(bezel);
+
+  const screenMaterial = new THREE.MeshStandardMaterial({
+    map: posterTexture,
+    emissiveMap: posterTexture,
+    emissive: new THREE.Color("#ffffff"),
+    emissiveIntensity: 0.18,
+    roughness: 0.18,
+    metalness: 0.02,
+    transparent: true,
+    opacity: 1
+  });
+
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(screenConfig.width, screenConfig.height), screenMaterial);
+  screen.position.set(0, 0, 0.031);
+  screen.userData = {
+    project,
+    normal: mount.normal.clone(),
+    buildingEntry: entry,
+    buildingId: entry.id,
+    screenId: screenConfig.id
+  };
+  screenMount.add(screen);
+  interactiveMeshes.push(screen);
+  billboardMeshes.push(screen);
+
+  const glow = new THREE.PointLight(project.accent, 1.2, 3.6, 2);
+  glow.position.set(0, 0, 0.35);
+  screenMount.add(glow);
+
+  const halo = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: project.accent,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  halo.scale.set(screenConfig.width * 1.3, screenConfig.height * 1.3, 1);
+  halo.position.set(0, 0, 0.04);
+  screenMount.add(halo);
+
+  const target = {
+    key: getScreenKey(entry.id, screenConfig.id),
+    screenId: screenConfig.id,
+    buildingId: entry.id,
+    billboard: screen,
+    mount: screenMount,
+    buildingEntry: entry,
+    frame: bezel,
+    halo,
+    pointLight: glow,
+    posterTexture,
+    videoTexture: asset.texture,
+    video: asset.video,
+    videoAsset: asset,
+    screenMaterial,
+    isVideoActive: false,
+    config: screenConfig
+  };
+
+  billboardTargets.push(target);
+  screenTargetsByKey.set(target.key, target);
+  return target;
+};
+
+const createBuildingFromConfig = (buildingConfig) => {
+  const group = new THREE.Group();
+  const material = createBuildingMaterial();
+  buildingMaterials.push(material);
+  const renderMeshes = [];
+  const fadeMaterials = [material];
+  const roofPointLights = [];
+
+  const tower = new THREE.Mesh(
+    new THREE.BoxGeometry(
+      buildingConfig.dimensions.width,
+      buildingConfig.dimensions.height,
+      buildingConfig.dimensions.depth
+    ),
+    material
+  );
+  tower.position.y = buildingConfig.dimensions.height / 2;
+  tower.castShadow = true;
+  tower.receiveShadow = true;
+  tower.userData = { buildingId: buildingConfig.id };
+  group.add(tower);
+  renderMeshes.push(tower);
+  buildingSelectMeshes.push(tower);
+  interactiveMeshes.push(tower);
+
+  if (buildingConfig.cap.enabled) {
+    const capMaterial = roofMaterial.clone();
+    capMaterial.transparent = true;
+    capMaterial.opacity = 1;
+    fadeMaterials.push(capMaterial);
+    const cap = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        buildingConfig.cap.width,
+        buildingConfig.cap.height,
+        buildingConfig.cap.depth
+      ),
+      capMaterial
+    );
+    cap.position.set(0, buildingConfig.dimensions.height + buildingConfig.cap.height / 2, 0);
+    cap.castShadow = true;
+    cap.receiveShadow = true;
+    cap.userData = { buildingId: buildingConfig.id };
+    group.add(cap);
+    renderMeshes.push(cap);
+    buildingSelectMeshes.push(cap);
+    interactiveMeshes.push(cap);
+  }
+
+  if (buildingConfig.sideCore.enabled) {
+    const core = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        buildingConfig.sideCore.width,
+        buildingConfig.sideCore.height,
+        buildingConfig.sideCore.depth
+      ),
+      material
+    );
+    core.position.set(
+      buildingConfig.sideCore.offsetX,
+      buildingConfig.sideCore.height / 2,
+      buildingConfig.sideCore.offsetZ
+    );
+    core.castShadow = true;
+    core.receiveShadow = true;
+    core.userData = { buildingId: buildingConfig.id };
+    group.add(core);
+    renderMeshes.push(core);
+    buildingSelectMeshes.push(core);
+    interactiveMeshes.push(core);
+  }
+
+  let roofBeacon = null;
+  let roofGlow = null;
+  let beaconLabel = null;
+  let beaconLabelMaterial = null;
+  const topCapHeight = buildingConfig.cap.enabled ? buildingConfig.cap.height : 0;
+
+  if (buildingConfig.beacon.enabled) {
+    const beaconMaterial = redBeaconMaterial.clone();
+    beaconMaterial.color.set(buildingConfig.beacon.color);
+    beaconMaterial.emissive.set(buildingConfig.beacon.color);
+    beaconMaterial.transparent = true;
+    beaconMaterial.opacity = 1;
+    fadeMaterials.push(beaconMaterial);
+    roofBeacon = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), beaconMaterial);
+    roofBeacon.position.set(0, buildingConfig.dimensions.height + topCapHeight + buildingConfig.beacon.offsetY, 0);
+    roofBeacon.userData = { buildingId: buildingConfig.id };
+    group.add(roofBeacon);
+    renderMeshes.push(roofBeacon);
+
+    roofGlow = new THREE.PointLight(
+      buildingConfig.beacon.color,
+      customization.roofLightIntensity,
+      3.4,
+      2
+    );
+    roofGlow.position.set(0, buildingConfig.dimensions.height + topCapHeight + buildingConfig.beacon.offsetY, 0);
+    group.add(roofGlow);
+    roofLights.push(roofGlow);
+    roofPointLights.push(roofGlow);
+  }
+
+  if (buildingConfig.label.enabled) {
+    const beaconLabelTexture = createBeaconLabelTexture(
+      buildingConfig.label.text || buildingConfig.id,
+      buildingConfig.label.color
+    );
+    beaconLabel = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: beaconLabelTexture,
+        transparent: true,
+        depthWrite: false,
+        opacity: 1,
+        color: buildingConfig.label.color
+      })
+    );
+    beaconLabel.position.set(
+      0,
+      buildingConfig.dimensions.height + topCapHeight + buildingConfig.label.offsetY,
+      0
+    );
+    beaconLabel.scale.set(1.16, 0.28, 1);
+    beaconLabel.userData = { buildingId: buildingConfig.id };
+    group.add(beaconLabel);
+    renderMeshes.push(beaconLabel);
+    fadeMaterials.push(beaconLabel.material);
+    beaconLabelMaterial = beaconLabel.material;
+    interactiveMeshes.push(beaconLabel);
+  }
+
+  group.position.set(buildingConfig.position.x, 0, buildingConfig.position.z);
+  group.rotation.y = buildingConfig.rotationY;
+  town.add(group);
+
+  const localBounds = new THREE.Box3().setFromObject(group);
+
+  const entry = {
+    id: buildingConfig.id,
+    key: buildingConfig.key ?? getBuildingKey({ x: buildingConfig.position.x, z: buildingConfig.position.z }),
+    config: buildingConfig,
+    group,
+    x: buildingConfig.position.x,
+    z: buildingConfig.position.z,
+    width: buildingConfig.dimensions.width,
+    depth: buildingConfig.dimensions.depth,
+    height: buildingConfig.dimensions.height,
+    prominence: buildingConfig.dimensions.height + Math.max(0, -buildingConfig.position.z),
+    renderMeshes,
+    fadeMaterials,
+    roofPointLights,
+    localBounds,
+    worldBounds: new THREE.Box3(),
+    currentOpacity: 1,
+    targetOpacity: 1,
+    beaconLabel,
+    beaconLabelMaterial,
+    roofBeacon,
+    screens: []
+  };
+
+  buildings.push(entry);
+  occludableBuildings.push(entry);
+  buildingEntriesById.set(entry.id, entry);
+
+  buildingConfig.screens.forEach((screenConfig) => {
+    const target = createScreenTargetFromConfig(entry, screenConfig);
+    if (target) {
+      entry.screens.push(target);
+    }
+  });
+};
+
+const ensureEditorSelection = () => {
+  const enabledBuildings = sceneConfig.buildings.filter((building) => building.enabled);
+  if (!enabledBuildings.length) {
+    editorState.selectedBuildingId = null;
+    editorState.selectedScreenId = null;
+    return;
+  }
+
+  if (!enabledBuildings.some((building) => building.id === editorState.selectedBuildingId)) {
+    editorState.selectedBuildingId = enabledBuildings[0].id;
+  }
+
+  const selectedBuilding = sceneConfig.buildings.find((building) => building.id === editorState.selectedBuildingId);
+  const enabledScreens = selectedBuilding?.screens.filter((screen) => screen.enabled) ?? selectedBuilding?.screens ?? [];
+  if (!enabledScreens.length) {
+    editorState.selectedScreenId = null;
+    return;
+  }
+  if (!enabledScreens.some((screen) => screen.id === editorState.selectedScreenId)) {
+    editorState.selectedScreenId = enabledScreens[0].id;
+  }
+};
+
+const buildCityFromConfig = (config) => {
+  const currentSelectionKey =
+    selectedBillboard?.userData?.buildingId && selectedBillboard?.userData?.screenId
+      ? getScreenKey(selectedBillboard.userData.buildingId, selectedBillboard.userData.screenId)
+      : null;
+  clearCityAuthoringState();
+  config.buildings.filter((building) => building.enabled).forEach(createBuildingFromConfig);
+  ensureEditorSelection();
+  if (editorState.previewScreenKey) {
+    const previewTarget = screenTargetsByKey.get(editorState.previewScreenKey);
+    if (previewTarget) {
+      selectedBillboard = previewTarget.billboard;
+      frameSelection(previewTarget.billboard);
+    } else {
+      editorState.previewScreenKey = null;
+      selectedBillboard = null;
+      frameSelection(null);
+    }
+  } else if (currentSelectionKey) {
+    const nextSelectedTarget = screenTargetsByKey.get(currentSelectionKey);
+    if (nextSelectedTarget && editorState.mode === "browse") {
+      selectedBillboard = nextSelectedTarget.billboard;
+      frameSelection(nextSelectedTarget.billboard);
+    } else {
+      selectedBillboard = null;
+      frameSelection(null);
+    }
+  } else {
+    selectedBillboard = null;
+    frameSelection(null);
+  }
+  interactionDirty = true;
+  labelDirty = true;
+  overlayDirty = true;
+  occlusionDirty = true;
+};
+
+const scheduleCityRebuild = () => {
+  if (sceneRebuildQueued) {
+    return;
+  }
+  sceneRebuildQueued = true;
+  requestAnimationFrame(() => {
+    sceneRebuildQueued = false;
+    buildCityFromConfig(sceneConfig);
+    renderEditorControls();
+  });
 };
 
 const cityLayoutSeed = [
@@ -1079,21 +1829,451 @@ const getHomeScreenScore = (entry) => {
 };
 
 const init = () => {
+  sceneConfig = loadSceneConfigFromStorage();
+  editorState.mode = sceneConfig.camera.mode ?? "browse";
   createGround();
   createParticles();
   createRoadLines();
-  cityLayout.forEach(createBuilding);
+  applySceneConfigToCustomization();
+  buildCityFromConfig(sceneConfig);
+};
 
-  const sortedByVisibility = [...occludableBuildings].sort((a, b) => {
-    return getHomeScreenScore(b) - getHomeScreenScore(a) || b.height - a.height;
+const clampInputValue = (input, value) => {
+  if (!input) {
+    return value;
+  }
+
+  const min = input.min === "" ? -Infinity : Number(input.min);
+  const max = input.max === "" ? Infinity : Number(input.max);
+  return THREE.MathUtils.clamp(value, min, max);
+};
+
+const syncCustomizeControls = () => {
+  if (!cameraYawInput || !cameraPitchInput || !cameraDistanceInput || !cameraFovInput) {
+    return;
+  }
+
+  const yaw = clampInputValue(cameraYawInput, customization.cameraYaw);
+  const pitch = clampInputValue(cameraPitchInput, customization.cameraPitch);
+  const distance = clampInputValue(cameraDistanceInput, customization.cameraDistance);
+  const fov = clampInputValue(cameraFovInput, customization.cameraFov);
+
+  cameraYawInput.value = `${yaw}`;
+  cameraPitchInput.value = `${pitch}`;
+  cameraDistanceInput.value = `${distance}`;
+  cameraFovInput.value = `${fov}`;
+  if (cameraTargetXInput) {
+    cameraTargetXInput.value = `${customization.targetX.toFixed(2)}`;
+  }
+  if (cameraTargetYInput) {
+    cameraTargetYInput.value = `${customization.targetY.toFixed(2)}`;
+  }
+  if (cameraTargetZInput) {
+    cameraTargetZInput.value = `${customization.targetZ.toFixed(2)}`;
+  }
+  cameraYawValue.textContent = `${yaw.toFixed(0)} deg`;
+  cameraPitchValue.textContent = `${pitch.toFixed(0)} deg`;
+  cameraDistanceValue.textContent = `${distance.toFixed(1)}`;
+  cameraFovValue.textContent = `${fov.toFixed(1)}`;
+
+  if (cameraPresetNameInput) {
+    cameraPresetNameInput.value = sceneConfig.camera.presetName || "Current framing";
+  }
+
+  if (cameraDataOutput) {
+    cameraDataOutput.value = [
+      `preset: ${sceneConfig.camera.presetName || "Current framing"}`,
+      `yaw: ${customization.cameraYaw.toFixed(2)}`,
+      `pitch: ${customization.cameraPitch.toFixed(2)}`,
+      `distance: ${customization.cameraDistance.toFixed(2)}`,
+      `fov: ${customization.cameraFov.toFixed(2)}`,
+      `position: x ${customization.cameraX.toFixed(2)}, y ${customization.cameraY.toFixed(2)}, z ${customization.cameraZ.toFixed(2)}`,
+      `target: x ${customization.targetX.toFixed(2)}, y ${customization.targetY.toFixed(2)}, z ${customization.targetZ.toFixed(2)}`
+    ].join("\n");
+  }
+};
+
+const getSelectedBuildingConfig = () =>
+  sceneConfig.buildings.find((building) => building.id === editorState.selectedBuildingId) ?? null;
+
+const getSelectedScreenConfig = () => {
+  const building = getSelectedBuildingConfig();
+  return building?.screens.find((screen) => screen.id === editorState.selectedScreenId) ?? null;
+};
+
+const populateSelect = (select, options, selectedValue, fallbackLabel) => {
+  if (!select) {
+    return;
+  }
+  select.innerHTML = "";
+  if (!options.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = fallbackLabel;
+    select.append(option);
+    return;
+  }
+  options.forEach(({ value, label }) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label;
+    option.selected = value === selectedValue;
+    select.append(option);
   });
-  const hiddenHomeEntry = sortedByVisibility[sortedByVisibility.length - 1];
+};
 
-  sortedByVisibility
-    .filter((entry) => entry !== hiddenHomeEntry)
-    .forEach((entry, index) => {
-      addScreenToBuilding(entry, projects[index % projects.length]);
+const renderEditorControls = () => {
+  syncCustomizeControls();
+  if (editorModeSelect) {
+    editorModeSelect.value = editorState.mode;
+  }
+
+  const buildingOptions = sceneConfig.buildings.map((building) => ({
+    value: building.id,
+    label: `${building.id} ${building.label.text ? `• ${building.label.text}` : ""}`.trim()
+  }));
+  populateSelect(buildingSelect, buildingOptions, editorState.selectedBuildingId, "No buildings");
+
+  const selectedBuilding = getSelectedBuildingConfig();
+  const selectedScreen = getSelectedScreenConfig();
+  const screenOptions = selectedBuilding
+    ? selectedBuilding.screens.map((screen) => ({
+        value: screen.id,
+        label: `${screen.id} • ${screen.projectSlug}`
+      }))
+    : [];
+  populateSelect(screenSelect, screenOptions, editorState.selectedScreenId, "No screens");
+  populateSelect(
+    screenProjectSelect,
+    projects.map((project) => ({ value: project.slug, label: project.title })),
+    selectedScreen?.projectSlug,
+    "No projects"
+  );
+
+  const hasBuilding = Boolean(selectedBuilding);
+  const hasScreen = Boolean(selectedScreen);
+  [
+    buildingDuplicateButton,
+    buildingDeleteButton,
+    buildingEnabledInput,
+    buildingXInput,
+    buildingZInput,
+    buildingRotationInput,
+    buildingWidthInput,
+    buildingDepthInput,
+    buildingHeightInput,
+    buildingCapEnabledInput,
+    buildingCapWidthInput,
+    buildingCapDepthInput,
+    buildingCapHeightInput,
+    buildingCoreEnabledInput,
+    buildingCoreWidthInput,
+    buildingCoreDepthInput,
+    buildingCoreHeightInput,
+    buildingCoreOffsetXInput,
+    buildingCoreOffsetZInput,
+    buildingLabelEnabledInput,
+    buildingLabelTextInput,
+    buildingLabelColorInput,
+    buildingLabelOffsetYInput,
+    buildingBeaconEnabledInput,
+    buildingBeaconColorInput,
+    buildingBeaconOffsetYInput,
+    screenAddButton
+  ].forEach((element) => {
+    if (element) {
+      element.disabled = !hasBuilding;
+    }
+  });
+
+  [
+    screenDuplicateButton,
+    screenDeleteButton,
+    screenEnabledInput,
+    screenProjectSelect,
+    screenSideSelect,
+    screenWidthInput,
+    screenHeightInput,
+    screenTopOffsetInput,
+    screenOffsetAlongInput,
+    screenOffsetOutwardInput,
+    toolPreviewScreenButton,
+    toolTopScreenButton,
+    toolAlignScreenButton
+  ].forEach((element) => {
+    if (element) {
+      element.disabled = !hasScreen;
+    }
+  });
+
+  [toolFaceBuildingButton, toolRebalanceHeightsButton].forEach((element) => {
+    if (element) {
+      element.disabled = !hasBuilding;
+    }
+  });
+
+  if (selectedBuilding) {
+    buildingEnabledInput.checked = selectedBuilding.enabled;
+    buildingXInput.value = `${selectedBuilding.position.x.toFixed(2)}`;
+    buildingZInput.value = `${selectedBuilding.position.z.toFixed(2)}`;
+    buildingRotationInput.value = `${selectedBuilding.rotationY.toFixed(2)}`;
+    buildingWidthInput.value = `${selectedBuilding.dimensions.width.toFixed(2)}`;
+    buildingDepthInput.value = `${selectedBuilding.dimensions.depth.toFixed(2)}`;
+    buildingHeightInput.value = `${selectedBuilding.dimensions.height.toFixed(2)}`;
+    buildingCapEnabledInput.checked = selectedBuilding.cap.enabled;
+    buildingCapWidthInput.value = `${selectedBuilding.cap.width.toFixed(2)}`;
+    buildingCapDepthInput.value = `${selectedBuilding.cap.depth.toFixed(2)}`;
+    buildingCapHeightInput.value = `${selectedBuilding.cap.height.toFixed(2)}`;
+    buildingCoreEnabledInput.checked = selectedBuilding.sideCore.enabled;
+    buildingCoreWidthInput.value = `${selectedBuilding.sideCore.width.toFixed(2)}`;
+    buildingCoreDepthInput.value = `${selectedBuilding.sideCore.depth.toFixed(2)}`;
+    buildingCoreHeightInput.value = `${selectedBuilding.sideCore.height.toFixed(2)}`;
+    buildingCoreOffsetXInput.value = `${selectedBuilding.sideCore.offsetX.toFixed(2)}`;
+    buildingCoreOffsetZInput.value = `${selectedBuilding.sideCore.offsetZ.toFixed(2)}`;
+    buildingLabelEnabledInput.checked = selectedBuilding.label.enabled;
+    buildingLabelTextInput.value = selectedBuilding.label.text;
+    buildingLabelColorInput.value = selectedBuilding.label.color;
+    buildingLabelOffsetYInput.value = `${selectedBuilding.label.offsetY.toFixed(2)}`;
+    buildingBeaconEnabledInput.checked = selectedBuilding.beacon.enabled;
+    buildingBeaconColorInput.value = selectedBuilding.beacon.color;
+    buildingBeaconOffsetYInput.value = `${selectedBuilding.beacon.offsetY.toFixed(2)}`;
+  } else {
+    buildingEnabledInput.checked = false;
+    buildingCapEnabledInput.checked = false;
+    buildingCoreEnabledInput.checked = false;
+    buildingLabelEnabledInput.checked = false;
+    buildingBeaconEnabledInput.checked = false;
+    buildingLabelColorInput.value = "#ffffff";
+    buildingBeaconColorInput.value = "#ff4a73";
+    [
+      buildingXInput,
+      buildingZInput,
+      buildingRotationInput,
+      buildingWidthInput,
+      buildingDepthInput,
+      buildingHeightInput,
+      buildingCapWidthInput,
+      buildingCapDepthInput,
+      buildingCapHeightInput,
+      buildingCoreWidthInput,
+      buildingCoreDepthInput,
+      buildingCoreHeightInput,
+      buildingCoreOffsetXInput,
+      buildingCoreOffsetZInput,
+      buildingLabelTextInput,
+      buildingLabelOffsetYInput,
+      buildingBeaconOffsetYInput
+    ].forEach((input) => {
+      input.value = "";
     });
+  }
+
+  if (selectedScreen) {
+    screenEnabledInput.checked = selectedScreen.enabled;
+    screenProjectSelect.value = selectedScreen.projectSlug;
+    screenSideSelect.value = selectedScreen.side;
+    screenWidthInput.value = `${selectedScreen.width.toFixed(2)}`;
+    screenHeightInput.value = `${selectedScreen.height.toFixed(2)}`;
+    screenTopOffsetInput.value = `${selectedScreen.topOffset.toFixed(2)}`;
+    screenOffsetAlongInput.value = `${selectedScreen.offsetAlongFace.toFixed(2)}`;
+    screenOffsetOutwardInput.value = `${selectedScreen.offsetOutward.toFixed(2)}`;
+  } else {
+    screenEnabledInput.checked = false;
+    screenProjectSelect.value = "";
+    screenSideSelect.value = "front";
+    screenWidthInput.value = "";
+    screenHeightInput.value = "";
+    screenTopOffsetInput.value = "";
+    screenOffsetAlongInput.value = "";
+    screenOffsetOutwardInput.value = "";
+  }
+
+  sceneBgColorInput.value = sceneConfig.scene.bgColor;
+  sceneFogColorInput.value = sceneConfig.scene.fogColor;
+  sceneFogNearInput.value = `${sceneConfig.scene.fogNear}`;
+  sceneFogFarInput.value = `${sceneConfig.scene.fogFar}`;
+  sceneAmbientInput.value = `${sceneConfig.scene.ambientIntensity}`;
+  sceneFrontLightInput.value = `${sceneConfig.scene.frontLightIntensity}`;
+  sceneBackLightInput.value = `${sceneConfig.scene.backLightIntensity}`;
+};
+
+const getUniqueBuildingId = () => {
+  let index = sceneConfig.buildings.length + 1;
+  while (sceneConfig.buildings.some((building) => building.id === `tower-${String(index).padStart(2, "0")}`)) {
+    index += 1;
+  }
+  return `tower-${String(index).padStart(2, "0")}`;
+};
+
+const getUniqueScreenId = (building) => {
+  let index = building.screens.length + 1;
+  while (building.screens.some((screen) => screen.id === `${building.id}-screen-${String(index).padStart(2, "0")}`)) {
+    index += 1;
+  }
+  return `${building.id}-screen-${String(index).padStart(2, "0")}`;
+};
+
+const refreshEditorFromSceneConfig = ({ rebuildCity = false, syncView = false } = {}) => {
+  if (syncView) {
+    applySceneConfigToCustomization();
+    applyCustomization();
+    if (editorState.mode === "edit" && !editorState.previewScreenKey) {
+      syncOrbitControlsFromSceneConfig();
+      syncCameraStateFromCurrentView();
+    }
+  }
+  saveSceneConfigToStorage();
+  if (rebuildCity) {
+    scheduleCityRebuild();
+    return;
+  }
+  renderEditorControls();
+};
+
+const selectBuilding = (buildingId, preferredScreenId = null) => {
+  editorState.selectedBuildingId = buildingId;
+  const building = getSelectedBuildingConfig();
+  if (!building) {
+    editorState.selectedScreenId = null;
+    renderEditorControls();
+    return;
+  }
+  if (preferredScreenId && building.screens.some((screen) => screen.id === preferredScreenId)) {
+    editorState.selectedScreenId = preferredScreenId;
+  } else {
+    editorState.selectedScreenId = building.screens[0]?.id ?? null;
+  }
+  labelDirty = true;
+  renderEditorControls();
+};
+
+const selectScreen = (buildingId, screenId) => {
+  editorState.selectedBuildingId = buildingId;
+  editorState.selectedScreenId = screenId;
+  labelDirty = true;
+  renderEditorControls();
+};
+
+const createBuildingConfig = (template = null) => {
+  const fallback = template ? cloneValue(template) : cloneValue(defaultSceneConfig.buildings[0]);
+  const index = sceneConfig.buildings.length;
+  const id = getUniqueBuildingId();
+  const x = template ? template.position.x + 1.1 : Math.cos(index * 0.75) * 4;
+  const z = template ? template.position.z + 1.1 : Math.sin(index * 0.75) * 3.4;
+  fallback.id = id;
+  fallback.position.x = Number(x.toFixed(2));
+  fallback.position.z = Number(z.toFixed(2));
+  fallback.key = getBuildingKey({ x: fallback.position.x, z: fallback.position.z });
+  fallback.label.text = template ? `${template.label.text || template.id} copy` : id;
+  fallback.screens = (template ? template.screens : []).map((screen, screenIndex) => ({
+    ...cloneValue(screen),
+    id: `${id}-screen-${String(screenIndex + 1).padStart(2, "0")}`
+  }));
+  return fallback;
+};
+
+const createScreenConfig = (building, template = null) => ({
+  id: getUniqueScreenId(building),
+  enabled: template?.enabled ?? true,
+  projectSlug: template?.projectSlug ?? projects[0].slug,
+  side: template?.side ?? "front",
+  width: template?.width ?? building.defaultScreen?.width ?? 1,
+  height: template?.height ?? building.defaultScreen?.height ?? 0.8,
+  topOffset: template?.topOffset ?? 0.28,
+  offsetAlongFace: template?.offsetAlongFace ?? 0,
+  offsetOutward: template?.offsetOutward ?? 0.03
+});
+
+const getCameraFacingSideForBuilding = (building) => {
+  const toCamera = new THREE.Vector3(
+    camera.position.x - building.position.x,
+    0,
+    camera.position.z - building.position.z
+  ).normalize();
+  const local = toCamera.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), -building.rotationY);
+  const scores = [
+    { side: "front", score: local.z },
+    { side: "back", score: -local.z },
+    { side: "right", score: local.x },
+    { side: "left", score: -local.x }
+  ];
+  scores.sort((a, b) => b.score - a.score);
+  return scores[0].side;
+};
+
+const downloadSceneConfig = () => {
+  const json = JSON.stringify(sceneConfig, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "lab-city-scene-config.json";
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
+const loadSceneConfigState = (nextConfig) => {
+  sceneConfig = normalizeSceneConfig(nextConfig, projects);
+  editorState.selectedBuildingId = null;
+  editorState.selectedScreenId = null;
+  editorState.previewScreenKey = null;
+  applySceneConfigToCustomization();
+  buildCityFromConfig(sceneConfig);
+  applyCustomization();
+  setEditorMode(sceneConfig.camera.mode ?? "browse");
+  renderEditorControls();
+  saveSceneConfigToStorage();
+};
+
+const mutateSelectedBuilding = (mutator) => {
+  const building = getSelectedBuildingConfig();
+  if (!building) {
+    return;
+  }
+  mutator(building);
+  building.key = getBuildingKey({
+    x: Number(building.position.x.toFixed(2)),
+    z: Number(building.position.z.toFixed(2))
+  });
+  refreshEditorFromSceneConfig({ rebuildCity: true });
+};
+
+const mutateSelectedScreen = (mutator) => {
+  const screen = getSelectedScreenConfig();
+  if (!screen) {
+    return;
+  }
+  mutator(screen, getSelectedBuildingConfig());
+  refreshEditorFromSceneConfig({ rebuildCity: true });
+};
+
+const updateCameraConfigFromInputs = () => {
+  sceneConfig.camera.orbitYaw = Number(cameraYawInput.value);
+  sceneConfig.camera.orbitPitch = Number(cameraPitchInput.value);
+  sceneConfig.camera.orbitDistance = Number(cameraDistanceInput.value);
+  sceneConfig.camera.fov = Number(cameraFovInput.value);
+  sceneConfig.camera.target.x = Number(cameraTargetXInput.value);
+  sceneConfig.camera.target.y = Number(cameraTargetYInput.value);
+  sceneConfig.camera.target.z = Number(cameraTargetZInput.value);
+  refreshEditorFromSceneConfig({ syncView: true });
+};
+
+const bindNumberInput = (input, callback) => {
+  input?.addEventListener("input", () => {
+    const value = Number(input.value);
+    if (!Number.isFinite(value)) {
+      return;
+    }
+    callback(value);
+  });
+};
+
+const bindCheckboxInput = (input, callback) => {
+  input?.addEventListener("input", () => {
+    callback(input.checked);
+  });
 };
 
 const updatePanel = (project) => {
@@ -1136,7 +2316,6 @@ const setBillboardVideoState = (target, active) => {
 const refreshVideoTargets = () => {
   billboardTargets.forEach((target) => {
     const active =
-      !selectedBillboard ||
       target.billboard === selectedBillboard ||
       target.billboard === hoveredBillboard;
     setBillboardVideoState(target, active);
@@ -1149,6 +2328,8 @@ const setHover = (billboard) => {
   }
 
   hoveredBillboard = billboard;
+  labelDirty = true;
+  overlayDirty = true;
   if (!billboard) {
     label.dataset.visible = "false";
     refreshVideoTargets();
@@ -1167,6 +2348,9 @@ const frameSelection = (billboard) => {
     hint.dataset.dimmed = "false";
     document.body.dataset.focused = "false";
     updatePanel(null);
+    overlayDirty = true;
+    occlusionDirty = true;
+    labelDirty = true;
     refreshVideoTargets();
     return;
   }
@@ -1186,6 +2370,9 @@ const frameSelection = (billboard) => {
   hint.dataset.dimmed = "true";
   document.body.dataset.focused = "true";
   updatePanel(billboard.userData.project);
+  overlayDirty = true;
+  occlusionDirty = true;
+  labelDirty = true;
   refreshVideoTargets();
 };
 
@@ -1193,10 +2380,20 @@ const updateBillboardFeedback = (elapsed) => {
   billboardTargets.forEach(({ billboard, frame, halo, pointLight, screenMaterial, buildingEntry }) => {
     const isHovered = hoveredBillboard === billboard;
     const isSelected = selectedBillboard === billboard;
+    const isEditorSelected =
+      editorState.mode === "edit" &&
+      billboard.userData.buildingId === editorState.selectedBuildingId &&
+      billboard.userData.screenId === editorState.selectedScreenId;
     const occlusionFactor = buildingEntry?.currentOpacity ?? 1;
     const hiddenByOcclusion = !isSelected && occlusionFactor < 0.02;
     const pulse = 1 + Math.sin(elapsed * 2) * 0.02;
-    const baseScale = isSelected ? customization.selectedScale : isHovered ? 1.05 : 1;
+    const baseScale = isSelected
+      ? customization.selectedScale
+      : isEditorSelected
+        ? 1.12
+        : isHovered
+          ? 1.05
+          : 1;
     const animatedScale = isSelected ? baseScale * pulse : baseScale;
     scaleVector.set(animatedScale, animatedScale, 1);
     billboard.scale.lerp(scaleVector, 0.12);
@@ -1211,19 +2408,19 @@ const updateBillboardFeedback = (elapsed) => {
 
     halo.material.opacity = THREE.MathUtils.lerp(
       halo.material.opacity,
-      (isSelected ? 0.28 : isHovered ? 0.22 : 0.18) * occlusionFactor,
+      (isSelected ? 0.28 : isEditorSelected ? 0.24 : isHovered ? 0.22 : 0.18) * occlusionFactor,
       0.12
     );
 
     pointLight.intensity = THREE.MathUtils.lerp(
       pointLight.intensity,
-      (isSelected ? 1.8 : isHovered ? 1.4 : 1.2) * occlusionFactor,
+      (isSelected ? 1.8 : isEditorSelected ? 1.55 : isHovered ? 1.4 : 1.2) * occlusionFactor,
       0.12
     );
 
     frame.material.emissiveIntensity = THREE.MathUtils.lerp(
       frame.material.emissiveIntensity,
-      (isSelected ? 0.18 : isHovered ? 0.1 : 0.06) * occlusionFactor,
+      (isSelected ? 0.18 : isEditorSelected ? 0.14 : isHovered ? 0.1 : 0.06) * occlusionFactor,
       0.12
     );
   });
@@ -1240,6 +2437,7 @@ const updateLabelPosition = () => {
   const x = (focusVector.x * 0.5 + 0.5) * window.innerWidth;
   const y = (-focusVector.y * 0.5 + 0.5) * window.innerHeight;
   label.style.transform = `translate3d(${x}px, ${y - 60}px, 0)`;
+  labelDirty = false;
 };
 
 const updateOverviewMotion = () => {
@@ -1309,28 +2507,43 @@ const updateIntroReturn = () => {
 };
 
 const updateRoadLines = (elapsed) => {
-  city.children.forEach((child) => {
-    if (!child.userData?.lane) {
-      return;
-    }
-    if (child.userData.lane === "x") {
-      child.position.x += child.userData.speed;
-      if (child.position.x > child.userData.amplitude) {
-        child.position.x = -child.userData.amplitude;
+  roadLines.forEach((line) => {
+    if (line.userData.lane === "x") {
+      line.position.x += line.userData.speed;
+      if (line.position.x > line.userData.amplitude) {
+        line.position.x = -line.userData.amplitude;
       }
     } else {
-      child.position.z += child.userData.speed;
-      if (child.position.z > child.userData.amplitude) {
-        child.position.z = -child.userData.amplitude;
+      line.position.z += line.userData.speed;
+      if (line.position.z > line.userData.amplitude) {
+        line.position.z = -line.userData.amplitude;
       }
     }
   });
   smoke.rotation.y += 0.003;
   smoke.rotation.x += 0.0015;
 
-  smoke.children.forEach((particle, index) => {
-    particle.position.y += Math.sin(elapsed * 0.8 + index) * 0.0006;
+  smokePhase = (smokePhase + 1) % 2;
+  const smokeAmplitude = qualityMode === "reduced" ? 0.00035 : 0.0006;
+  smokeParticles.forEach((particle, index) => {
+    if (qualityMode === "reduced" && index % 2 !== smokePhase) {
+      return;
+    }
+    particle.position.y += Math.sin(elapsed * 0.8 + index) * smokeAmplitude;
   });
+};
+
+const hidePlayerOverlay = () => {
+  playerOverlay.setAttribute("aria-hidden", "true");
+  overlayDirty = false;
+  if (!playerElement.paused) {
+    playerElement.pause();
+  }
+  if (playerElement.dataset.src) {
+    playerElement.removeAttribute("src");
+    playerElement.dataset.src = "";
+    playerElement.load();
+  }
 };
 
 const updatePlayerOverlay = () => {
@@ -1339,21 +2552,13 @@ const updatePlayerOverlay = () => {
   }
 
   if (!selectedBillboard || aboutOpen) {
-    playerOverlay.setAttribute("aria-hidden", "true");
-    if (!playerElement.paused) {
-      playerElement.pause();
-    }
-    if (playerElement.dataset.src) {
-      playerElement.removeAttribute("src");
-      playerElement.dataset.src = "";
-      playerElement.load();
-    }
+    hidePlayerOverlay();
     return;
   }
 
   const target = billboardTargets.find(({ billboard }) => billboard === selectedBillboard);
   if (!target) {
-    playerOverlay.setAttribute("aria-hidden", "true");
+    hidePlayerOverlay();
     return;
   }
 
@@ -1362,15 +2567,7 @@ const updatePlayerOverlay = () => {
     cameraState.currentTarget.distanceTo(cameraState.goalTarget) < 0.26;
 
   if (!cameraReady) {
-    playerOverlay.setAttribute("aria-hidden", "true");
-    if (!playerElement.paused) {
-      playerElement.pause();
-    }
-    if (playerElement.dataset.src) {
-      playerElement.removeAttribute("src");
-      playerElement.dataset.src = "";
-      playerElement.load();
-    }
+    hidePlayerOverlay();
     return;
   }
 
@@ -1400,11 +2597,18 @@ const updatePlayerOverlay = () => {
 
   const insetX = (maxX - minX) * 0.12;
   const insetY = (maxY - minY) * 0.12;
-  playerOverlay.style.left = `${minX + insetX}px`;
-  playerOverlay.style.top = `${minY + insetY}px`;
-  playerOverlay.style.width = `${Math.max(120, maxX - minX - insetX * 2)}px`;
-  playerOverlay.style.height = `${Math.max(80, maxY - minY - insetY * 2)}px`;
+  const availableWidth = Math.max(120, maxX - minX - insetX * 2);
+  const availableHeight = Math.max(80, maxY - minY - insetY * 2);
+  const nextWidth = Math.max(120, availableWidth * 0.8);
+  const nextHeight = Math.max(80, availableHeight * 0.8);
+  const centeredLeft = minX + insetX + (availableWidth - nextWidth) / 2;
+  const centeredTop = minY + insetY + (availableHeight - nextHeight) / 2;
+  playerOverlay.style.left = `${centeredLeft}px`;
+  playerOverlay.style.top = `${centeredTop}px`;
+  playerOverlay.style.width = `${nextWidth}px`;
+  playerOverlay.style.height = `${nextHeight}px`;
   playerOverlay.setAttribute("aria-hidden", "false");
+  overlayDirty = false;
 
   const nextSrc = target.billboard.userData.project.videoSrc;
   if (playerElement.dataset.src !== nextSrc) {
@@ -1415,6 +2619,10 @@ const updatePlayerOverlay = () => {
   }
 };
 
+const isCameraMoving = () =>
+  cameraState.currentPosition.distanceToSquared(cameraState.goalPosition) > 0.0004 ||
+  cameraState.currentTarget.distanceToSquared(cameraState.goalTarget) > 0.0004;
+
 const applyCustomization = () => {
   scene.background.set(customization.bgColor);
   scene.fog.color.set(customization.fogColor);
@@ -1423,13 +2631,18 @@ const applyCustomization = () => {
 
   camera.fov = customization.cameraFov;
   camera.updateProjectionMatrix();
+  syncCameraCartesianFromOrbit();
 
   cameraState.basePosition.set(
     customization.cameraX,
     customization.cameraY,
     customization.cameraZ
   );
-  cameraState.baseTarget.set(0, customization.targetY, 0);
+  cameraState.baseTarget.set(
+    customization.targetX,
+    customization.targetY,
+    customization.targetZ
+  );
   if (!selectedBillboard) {
     cameraState.goalPosition.copy(cameraState.basePosition);
     cameraState.goalTarget.copy(cameraState.baseTarget);
@@ -1457,11 +2670,19 @@ const applyCustomization = () => {
     screenMaterial.emissiveIntensity = customization.screenEmissiveIntensity;
     screenMaterial.needsUpdate = true;
   });
+
+  interactionDirty = true;
+  overlayDirty = true;
+  occlusionDirty = true;
+  labelDirty = true;
+  syncCustomizeControls();
 };
 
 const onMouseMove = (event) => {
   pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
   pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  interactionDirty = true;
+  labelDirty = true;
 };
 
 const onTouch = (event) => {
@@ -1471,6 +2692,8 @@ const onTouch = (event) => {
   event.preventDefault();
   pointer.x = (event.touches[0].pageX / window.innerWidth) * 2 - 1;
   pointer.y = -(event.touches[0].pageY / window.innerHeight) * 2 + 1;
+  interactionDirty = true;
+  labelDirty = true;
 };
 
 window.addEventListener("mousemove", onMouseMove, false);
@@ -1482,9 +2705,29 @@ canvas.addEventListener("click", () => {
     return;
   }
   raycaster.setFromCamera(pointer, camera);
+  if (editorState.mode === "edit") {
+    dismissIntro();
+    const editTargets = [...billboardMeshes, ...buildingSelectMeshes];
+    const hit = raycaster.intersectObjects(editTargets)[0];
+    if (!hit) {
+      clearEditorPreview();
+      return;
+    }
+    if (hit.object.userData?.screenId) {
+      selectScreen(hit.object.userData.buildingId, hit.object.userData.screenId);
+      clearEditorPreview();
+      return;
+    }
+    if (hit.object.userData?.buildingId) {
+      selectBuilding(hit.object.userData.buildingId);
+      clearEditorPreview();
+    }
+    return;
+  }
   const hit = raycaster.intersectObjects(billboardMeshes)[0];
   if (hit) {
     dismissIntro();
+    editorState.previewScreenKey = null;
     selectedBillboard = hit.object;
     frameSelection(hit.object);
   }
@@ -1501,6 +2744,7 @@ aboutTrigger?.addEventListener("click", (event) => {
   event.preventDefault();
   event.stopPropagation();
   dismissIntro();
+  setCustomizeOpen(false);
   if (!aboutOpen && selectedBillboard) {
     selectedBillboard = null;
     frameSelection(null);
@@ -1514,7 +2758,451 @@ aboutClose?.addEventListener("click", (event) => {
   setAboutOpen(false);
 });
 
+customizeTrigger?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  dismissIntro();
+  setAboutOpen(false);
+  setCustomizeOpen(!customizeOpen);
+  syncCustomizeControls();
+});
+
+customizeClose?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setCustomizeOpen(false);
+});
+
+cameraYawInput?.addEventListener("input", () => {
+  updateCameraConfigFromInputs();
+});
+
+cameraPitchInput?.addEventListener("input", () => {
+  updateCameraConfigFromInputs();
+});
+
+cameraDistanceInput?.addEventListener("input", () => {
+  updateCameraConfigFromInputs();
+});
+
+cameraFovInput?.addEventListener("input", () => {
+  updateCameraConfigFromInputs();
+});
+
+cameraPresetNameInput?.addEventListener("input", () => {
+  sceneConfig.camera.presetName = cameraPresetNameInput.value;
+  refreshEditorFromSceneConfig();
+});
+
+[cameraTargetXInput, cameraTargetYInput, cameraTargetZInput].forEach((input) => {
+  input?.addEventListener("input", () => {
+    updateCameraConfigFromInputs();
+  });
+});
+
+editorModeSelect?.addEventListener("input", () => {
+  setEditorMode(editorModeSelect.value);
+  renderEditorControls();
+});
+
+cameraUseCurrentButton?.addEventListener("click", () => {
+  if (editorState.mode === "edit") {
+    syncSceneConfigCameraFromOrbitControls();
+    return;
+  }
+  syncCameraOrbitFromCartesian();
+  sceneConfig.camera.orbitYaw = customization.cameraYaw;
+  sceneConfig.camera.orbitPitch = customization.cameraPitch;
+  sceneConfig.camera.orbitDistance = customization.cameraDistance;
+  sceneConfig.camera.fov = customization.cameraFov;
+  sceneConfig.camera.target.x = customization.targetX;
+  sceneConfig.camera.target.y = customization.targetY;
+  sceneConfig.camera.target.z = customization.targetZ;
+  refreshEditorFromSceneConfig();
+});
+
+cameraCopyDataButton?.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(cameraDataOutput?.value ?? "");
+  } catch {
+    cameraDataOutput?.focus();
+    cameraDataOutput?.select();
+  }
+});
+
+configExportButton?.addEventListener("click", () => {
+  downloadSceneConfig();
+});
+
+configImportButton?.addEventListener("click", () => {
+  configImportInput?.click();
+});
+
+configImportInput?.addEventListener("change", async () => {
+  const file = configImportInput.files?.[0];
+  if (!file) {
+    return;
+  }
+  try {
+    const contents = await file.text();
+    loadSceneConfigState(JSON.parse(contents));
+  } catch (error) {
+    console.error("Failed to import scene config", error);
+  } finally {
+    configImportInput.value = "";
+  }
+});
+
+configResetButton?.addEventListener("click", () => {
+  loadSceneConfigState(cloneSceneConfig(defaultSceneConfig));
+});
+
+buildingSelect?.addEventListener("input", () => {
+  selectBuilding(buildingSelect.value);
+});
+
+buildingAddButton?.addEventListener("click", () => {
+  const nextBuilding = createBuildingConfig();
+  sceneConfig.buildings.push(nextBuilding);
+  selectBuilding(nextBuilding.id);
+  refreshEditorFromSceneConfig({ rebuildCity: true });
+});
+
+buildingDuplicateButton?.addEventListener("click", () => {
+  const building = getSelectedBuildingConfig();
+  if (!building) {
+    return;
+  }
+  const duplicate = createBuildingConfig(building);
+  sceneConfig.buildings.push(duplicate);
+  selectBuilding(duplicate.id);
+  refreshEditorFromSceneConfig({ rebuildCity: true });
+});
+
+buildingDeleteButton?.addEventListener("click", () => {
+  const currentId = editorState.selectedBuildingId;
+  if (!currentId) {
+    return;
+  }
+  sceneConfig.buildings = sceneConfig.buildings.filter((building) => building.id !== currentId);
+  editorState.selectedBuildingId = sceneConfig.buildings[0]?.id ?? null;
+  editorState.selectedScreenId =
+    sceneConfig.buildings[0]?.screens[0]?.id ?? null;
+  clearEditorPreview();
+  refreshEditorFromSceneConfig({ rebuildCity: true });
+});
+
+bindCheckboxInput(buildingEnabledInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.enabled = value;
+  });
+});
+bindNumberInput(buildingXInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.position.x = value;
+  });
+});
+bindNumberInput(buildingZInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.position.z = value;
+  });
+});
+bindNumberInput(buildingRotationInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.rotationY = value;
+  });
+});
+bindNumberInput(buildingWidthInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.dimensions.width = Math.max(0.2, value);
+  });
+});
+bindNumberInput(buildingDepthInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.dimensions.depth = Math.max(0.2, value);
+  });
+});
+bindNumberInput(buildingHeightInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.dimensions.height = Math.max(0.5, value);
+  });
+});
+bindCheckboxInput(buildingCapEnabledInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.cap.enabled = value;
+  });
+});
+bindNumberInput(buildingCapWidthInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.cap.width = Math.max(0.1, value);
+  });
+});
+bindNumberInput(buildingCapDepthInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.cap.depth = Math.max(0.1, value);
+  });
+});
+bindNumberInput(buildingCapHeightInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.cap.height = Math.max(0.05, value);
+  });
+});
+bindCheckboxInput(buildingCoreEnabledInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.sideCore.enabled = value;
+  });
+});
+bindNumberInput(buildingCoreWidthInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.sideCore.width = Math.max(0.05, value);
+  });
+});
+bindNumberInput(buildingCoreDepthInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.sideCore.depth = Math.max(0.05, value);
+  });
+});
+bindNumberInput(buildingCoreHeightInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.sideCore.height = Math.max(0.05, value);
+  });
+});
+bindNumberInput(buildingCoreOffsetXInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.sideCore.offsetX = value;
+  });
+});
+bindNumberInput(buildingCoreOffsetZInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.sideCore.offsetZ = value;
+  });
+});
+bindCheckboxInput(buildingLabelEnabledInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.label.enabled = value;
+  });
+});
+buildingLabelTextInput?.addEventListener("input", () => {
+  mutateSelectedBuilding((building) => {
+    building.label.text = buildingLabelTextInput.value;
+  });
+});
+buildingLabelColorInput?.addEventListener("input", () => {
+  mutateSelectedBuilding((building) => {
+    building.label.color = buildingLabelColorInput.value;
+  });
+});
+bindNumberInput(buildingLabelOffsetYInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.label.offsetY = value;
+  });
+});
+bindCheckboxInput(buildingBeaconEnabledInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.beacon.enabled = value;
+  });
+});
+buildingBeaconColorInput?.addEventListener("input", () => {
+  mutateSelectedBuilding((building) => {
+    building.beacon.color = buildingBeaconColorInput.value;
+  });
+});
+bindNumberInput(buildingBeaconOffsetYInput, (value) => {
+  mutateSelectedBuilding((building) => {
+    building.beacon.offsetY = value;
+  });
+});
+
+screenSelect?.addEventListener("input", () => {
+  const building = getSelectedBuildingConfig();
+  if (!building) {
+    return;
+  }
+  selectScreen(building.id, screenSelect.value);
+});
+
+screenAddButton?.addEventListener("click", () => {
+  const building = getSelectedBuildingConfig();
+  if (!building) {
+    return;
+  }
+  const screen = createScreenConfig(building);
+  building.screens.push(screen);
+  selectScreen(building.id, screen.id);
+  refreshEditorFromSceneConfig({ rebuildCity: true });
+});
+
+screenDuplicateButton?.addEventListener("click", () => {
+  const building = getSelectedBuildingConfig();
+  const screen = getSelectedScreenConfig();
+  if (!building || !screen) {
+    return;
+  }
+  const duplicate = createScreenConfig(building, screen);
+  building.screens.push(duplicate);
+  selectScreen(building.id, duplicate.id);
+  refreshEditorFromSceneConfig({ rebuildCity: true });
+});
+
+screenDeleteButton?.addEventListener("click", () => {
+  const building = getSelectedBuildingConfig();
+  const currentId = editorState.selectedScreenId;
+  if (!building || !currentId) {
+    return;
+  }
+  building.screens = building.screens.filter((screen) => screen.id !== currentId);
+  editorState.selectedScreenId = building.screens[0]?.id ?? null;
+  clearEditorPreview();
+  refreshEditorFromSceneConfig({ rebuildCity: true });
+});
+
+bindCheckboxInput(screenEnabledInput, (value) => {
+  mutateSelectedScreen((screen) => {
+    screen.enabled = value;
+  });
+});
+screenProjectSelect?.addEventListener("input", () => {
+  mutateSelectedScreen((screen) => {
+    screen.projectSlug = screenProjectSelect.value;
+  });
+});
+screenSideSelect?.addEventListener("input", () => {
+  mutateSelectedScreen((screen) => {
+    screen.side = screenSideSelect.value;
+  });
+});
+bindNumberInput(screenWidthInput, (value) => {
+  mutateSelectedScreen((screen) => {
+    screen.width = Math.max(0.2, value);
+  });
+});
+bindNumberInput(screenHeightInput, (value) => {
+  mutateSelectedScreen((screen) => {
+    screen.height = Math.max(0.2, value);
+  });
+});
+bindNumberInput(screenTopOffsetInput, (value) => {
+  mutateSelectedScreen((screen) => {
+    screen.topOffset = Math.max(0.02, value);
+  });
+});
+bindNumberInput(screenOffsetAlongInput, (value) => {
+  mutateSelectedScreen((screen) => {
+    screen.offsetAlongFace = value;
+  });
+});
+bindNumberInput(screenOffsetOutwardInput, (value) => {
+  mutateSelectedScreen((screen) => {
+    screen.offsetOutward = value;
+  });
+});
+
+toolPreviewScreenButton?.addEventListener("click", () => {
+  const building = getSelectedBuildingConfig();
+  const screen = getSelectedScreenConfig();
+  if (!building || !screen) {
+    return;
+  }
+  const key = getScreenKey(building.id, screen.id);
+  const target = screenTargetsByKey.get(key);
+  if (!target) {
+    return;
+  }
+  editorState.previewScreenKey = key;
+  selectedBillboard = target.billboard;
+  updateOrbitControlsEnabledState();
+  frameSelection(target.billboard);
+});
+
+toolTopScreenButton?.addEventListener("click", () => {
+  mutateSelectedScreen((screen) => {
+    screen.topOffset = 0.18;
+  });
+});
+
+toolAlignScreenButton?.addEventListener("click", () => {
+  const building = getSelectedBuildingConfig();
+  if (!building) {
+    return;
+  }
+  mutateSelectedScreen((screen) => {
+    screen.side = getCameraFacingSideForBuilding(building);
+    screen.offsetAlongFace = 0;
+  });
+});
+
+sceneBgColorInput?.addEventListener("input", () => {
+  sceneConfig.scene.bgColor = sceneBgColorInput.value;
+  refreshEditorFromSceneConfig({ syncView: true });
+});
+sceneFogColorInput?.addEventListener("input", () => {
+  sceneConfig.scene.fogColor = sceneFogColorInput.value;
+  refreshEditorFromSceneConfig({ syncView: true });
+});
+bindNumberInput(sceneFogNearInput, (value) => {
+  sceneConfig.scene.fogNear = value;
+  refreshEditorFromSceneConfig({ syncView: true });
+});
+bindNumberInput(sceneFogFarInput, (value) => {
+  sceneConfig.scene.fogFar = value;
+  refreshEditorFromSceneConfig({ syncView: true });
+});
+bindNumberInput(sceneAmbientInput, (value) => {
+  sceneConfig.scene.ambientIntensity = value;
+  refreshEditorFromSceneConfig({ syncView: true });
+});
+bindNumberInput(sceneFrontLightInput, (value) => {
+  sceneConfig.scene.frontLightIntensity = value;
+  refreshEditorFromSceneConfig({ syncView: true });
+});
+bindNumberInput(sceneBackLightInput, (value) => {
+  sceneConfig.scene.backLightIntensity = value;
+  refreshEditorFromSceneConfig({ syncView: true });
+});
+
+toolFaceBuildingButton?.addEventListener("click", () => {
+  mutateSelectedBuilding((building) => {
+    building.rotationY = Math.atan2(
+      camera.position.x - building.position.x,
+      camera.position.z - building.position.z
+    );
+  });
+});
+
+toolRebalanceHeightsButton?.addEventListener("click", () => {
+  const center = new THREE.Vector2(0, 0);
+  sceneConfig.buildings.forEach((building) => {
+    const distance = center.distanceTo(new THREE.Vector2(building.position.x, building.position.z));
+    const factor = THREE.MathUtils.clamp(1 - distance / 6.5, 0.45, 1);
+    building.dimensions.height = Number((4.8 + factor * 5.6).toFixed(2));
+    if (building.cap.enabled) {
+      building.cap.height = Number((0.22 + factor * 0.34).toFixed(2));
+    }
+  });
+  refreshEditorFromSceneConfig({ rebuildCity: true });
+});
+
+toolDistributeRingButton?.addEventListener("click", () => {
+  const radius = 4.6;
+  sceneConfig.buildings.forEach((building, index) => {
+    const angle = (index / Math.max(1, sceneConfig.buildings.length)) * Math.PI * 2;
+    building.position.x = Number((Math.sin(angle) * radius).toFixed(2));
+    building.position.z = Number((Math.cos(angle) * radius * 0.8).toFixed(2));
+    building.rotationY = Math.atan2(-building.position.x, -building.position.z);
+    building.key = getBuildingKey({ x: building.position.x, z: building.position.z });
+  });
+  refreshEditorFromSceneConfig({ rebuildCity: true });
+});
+
 window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && editorState.mode === "edit" && editorState.previewScreenKey) {
+    clearEditorPreview();
+    return;
+  }
+  if (event.key === "Escape" && customizeOpen) {
+    setCustomizeOpen(false);
+    return;
+  }
   if (event.key === "Escape" && aboutOpen) {
     setAboutOpen(false);
     return;
@@ -1530,44 +3218,97 @@ window.addEventListener("resize", () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
+  updateQualityMode();
+  interactionDirty = true;
+  labelDirty = true;
+  overlayDirty = true;
+  occlusionDirty = true;
+  resizeDirty = true;
 });
 
 init();
 updatePanel(null);
 refreshVideoTargets();
+updateQualityMode();
 applyCustomization();
 setAboutOpen(false);
+setCustomizeOpen(false);
+setEditorMode(sceneConfig.camera.mode ?? "browse");
+renderEditorControls();
 restoreIntro();
 
 const animate = () => {
   const elapsed = clock.getElapsedTime();
   requestAnimationFrame(animate);
 
-  updateOverviewMotion();
   updateIntroReturn();
   updateIntroParallax();
   updateRoadLines(elapsed);
 
-  if (!selectedBillboard && !aboutOpen) {
-    raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObjects(billboardMeshes)[0];
-    setHover(hit?.object ?? null);
-    updateLabelPosition();
+  const previewingInEditMode = editorState.mode === "edit" && Boolean(editorState.previewScreenKey);
+  let cameraMovingBeforeRender = false;
+  let cameraMovingAfterRender = false;
+
+  if (editorState.mode === "edit" && !previewingInEditMode) {
+    orbitControls.update();
+    syncCameraStateFromCurrentView();
+    if (hoveredBillboard) {
+      setHover(null);
+    }
+    interactionDirty = false;
   } else {
-    setHover(null);
+    updateOverviewMotion();
+    cameraMovingBeforeRender = isCameraMoving();
+    const shouldRaycast =
+      editorState.mode === "browse" && !selectedBillboard && !aboutOpen;
+    if (shouldRaycast && (interactionDirty || cameraMovingBeforeRender || resizeDirty)) {
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObjects(billboardMeshes)[0];
+      setHover(hit?.object ?? null);
+      interactionDirty = false;
+    } else if ((!shouldRaycast || editorState.mode === "edit") && hoveredBillboard) {
+      setHover(null);
+    }
+
+    cameraState.currentPosition.lerp(cameraState.goalPosition, 0.08);
+    cameraState.currentTarget.lerp(cameraState.goalTarget, 0.1);
+    camera.position.copy(cameraState.currentPosition);
+    camera.lookAt(cameraState.currentTarget);
+    cameraMovingAfterRender = isCameraMoving();
   }
+
   updateBillboardFeedback(elapsed);
 
-  cameraState.currentPosition.lerp(cameraState.goalPosition, 0.08);
-  cameraState.currentTarget.lerp(cameraState.goalTarget, 0.1);
-  camera.position.copy(cameraState.currentPosition);
-  camera.lookAt(cameraState.currentTarget);
+  if (hoveredBillboard && (labelDirty || cameraMovingAfterRender || resizeDirty)) {
+    updateLabelPosition();
+  }
+
   updateBeaconLabels();
-  updateFocusedOcclusionTargets();
+  if (
+    (selectedBillboard && editorState.mode === "browse") ||
+    previewingInEditMode
+  ) {
+    if (occlusionDirty || cameraMovingAfterRender || resizeDirty) {
+      updateFocusedOcclusionTargets();
+      occlusionDirty = false;
+    }
+  } else if (occlusionFocused || occlusionDirty) {
+    updateFocusedOcclusionTargets();
+    occlusionDirty = false;
+  }
   updateBuildingOcclusion();
-  updatePlayerOverlay();
+  if (
+    selectedBillboard ||
+    overlayDirty ||
+    playerOverlay?.getAttribute("aria-hidden") === "false" ||
+    cameraMovingAfterRender ||
+    resizeDirty
+  ) {
+    updatePlayerOverlay();
+  }
 
   renderer.render(scene, camera);
+  resizeDirty = false;
 };
 
 frameSelection(null);
