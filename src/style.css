@@ -569,6 +569,14 @@ p {
   font-size: 0.82rem;
 }
 
+.panel-stats {
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.58);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+}
+
 .panel-description {
   margin: 16px 0 0;
   color: rgba(255, 255, 255, 0.78);

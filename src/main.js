@@ -19,6 +19,7 @@ const panel = document.querySelector(".project-panel");
 const panelClose = document.querySelector(".panel-close");
 const panelTitle = document.querySelector(".panel-title");
 const panelMeta = document.querySelector(".panel-meta");
+const panelStats = document.querySelector(".panel-stats");
 const panelDescription = document.querySelector(".panel-description");
 const panelKicker = document.querySelector(".panel-kicker");
 const header = document.querySelector(".header");
@@ -226,6 +227,7 @@ const roofLights = [];
 const smokeParticles = [];
 const sharedVideoAssets = new Map();
 const posterTextureCache = new Map();
+let preloadFrameQueueToken = 0;
 const labelTextureCache = new Map();
 const buildingEntriesById = new Map();
 const screenTargetsByKey = new Map();
@@ -707,6 +709,8 @@ const makeVideoAsset = (project) => {
     texture,
     frameCanvas,
     frameContext,
+    hasLoadedFirstFrame: false,
+    loadStarted: false,
     pendingSeek: false,
     displayTargets: new Set()
   };
@@ -731,8 +735,12 @@ const makeVideoAsset = (project) => {
   });
 
   video.addEventListener("loadeddata", () => {
+    asset.hasLoadedFirstFrame = true;
     drawCurrentFrame();
     video.pause();
+    asset.displayTargets.forEach((target) => {
+      refreshScreenTargetMedia(target);
+    });
   });
 
   video.addEventListener("seeked", () => {
@@ -740,9 +748,16 @@ const makeVideoAsset = (project) => {
     drawCurrentFrame();
   });
 
-  video.load();
   sharedVideoAssets.set(project.videoSrc, asset);
   return asset;
+};
+
+const ensureVideoAssetLoaded = (asset) => {
+  if (!asset || asset.loadStarted) {
+    return;
+  }
+  asset.loadStarted = true;
+  asset.video.load();
 };
 
 const createPosterTexture = (project) => {
@@ -862,7 +877,11 @@ const refreshScreenTargetMedia = (target) => {
     return;
   }
 
-  if (target.isVideoActive && target.video?.videoWidth && target.video?.videoHeight) {
+  if (
+    target.videoAsset?.hasLoadedFirstFrame &&
+    target.video?.videoWidth &&
+    target.video?.videoHeight
+  ) {
     drawMediaToScreenTarget(
       target,
       target.videoAsset.frameCanvas,
@@ -1655,6 +1674,36 @@ const createScreenTargetFromConfig = (entry, screenConfig) => {
   return target;
 };
 
+const queueVisibleBillboardFirstFrames = () => {
+  preloadFrameQueueToken += 1;
+  const queueToken = preloadFrameQueueToken;
+  const assetsToPreload = [];
+  const seenVideoSrc = new Set();
+
+  billboardTargets.forEach((target) => {
+    const videoSrc = target?.billboard?.userData?.project?.videoSrc;
+    if (!videoSrc || seenVideoSrc.has(videoSrc)) {
+      return;
+    }
+    seenVideoSrc.add(videoSrc);
+    if (!target.videoAsset?.hasLoadedFirstFrame) {
+      assetsToPreload.push(target.videoAsset);
+    }
+  });
+
+  const pump = (index) => {
+    if (queueToken !== preloadFrameQueueToken || index >= assetsToPreload.length) {
+      return;
+    }
+    ensureVideoAssetLoaded(assetsToPreload[index]);
+    window.setTimeout(() => {
+      pump(index + 1);
+    }, 160);
+  };
+
+  pump(0);
+};
+
 const createBuildingFromConfig = (buildingConfig) => {
   const group = new THREE.Group();
   const material = createBuildingMaterial();
@@ -1885,6 +1934,7 @@ const buildCityFromConfig = (config) => {
   labelDirty = true;
   overlayDirty = true;
   occlusionDirty = true;
+  queueVisibleBillboardFirstFrames();
 };
 
 const scheduleCityRebuild = () => {
@@ -2410,6 +2460,10 @@ const updatePanel = (project) => {
     panelKicker.textContent = "Case Study";
     panelTitle.textContent = "Escolha uma tela";
     panelMeta.textContent = "Passe o mouse sobre um prédio e clique para abrir o case.";
+    if (panelStats) {
+      panelStats.textContent = "";
+      panelStats.hidden = true;
+    }
     panelDescription.textContent =
       "A cidade mistura o mood original Lab City com os outdoors de vídeo do portfólio.";
     return;
@@ -2418,7 +2472,11 @@ const updatePanel = (project) => {
   panel.dataset.open = "true";
   panelKicker.textContent = "Case Study";
   panelTitle.textContent = project.title;
-  panelMeta.textContent = `${project.client}  •  ${project.date}`;
+  panelMeta.textContent = project.subtitle ?? `${project.client}  •  ${project.date}`;
+  if (panelStats) {
+    panelStats.textContent = project.stats ?? "";
+    panelStats.hidden = !project.stats;
+  }
   panelDescription.textContent = project.description;
 };
 
@@ -2428,6 +2486,9 @@ const setBillboardVideoState = (target, active) => {
   }
 
   target.isVideoActive = active;
+  if (active) {
+    ensureVideoAssetLoaded(target.videoAsset);
+  }
   refreshScreenTargetMedia(target);
   target.screenMaterial.needsUpdate = true;
 };

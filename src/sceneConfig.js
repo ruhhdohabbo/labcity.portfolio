@@ -1,4 +1,4 @@
-export const SCENE_CONFIG_STORAGE_KEY = "lab-city-scene-config-v7";
+export const SCENE_CONFIG_STORAGE_KEY = "lab-city-scene-config-v8";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const normalizeNumber = (value, fallback) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
@@ -91,7 +91,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-12-screen-01",
           "enabled": true,
-          "projectSlug": "beats-midnight-cut",
+          "projectSlug": "riosul-natal-2025",
           "side": "right",
           "width": 1,
           "height": 2.1,
@@ -149,7 +149,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-02-screen-01",
           "enabled": true,
-          "projectSlug": "beats-midnight-cut",
+          "projectSlug": "invincible-live-action-1-2025",
           "side": "right",
           "width": 1.1311160893683119,
           "height": 0.6945280986133097,
@@ -265,7 +265,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-04-screen-01",
           "enabled": true,
-          "projectSlug": "beats-midnight-cut",
+          "projectSlug": "elena-tokyo-nights-2025",
           "side": "right",
           "width": 1.2,
           "height": 2.2,
@@ -323,7 +323,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-05-screen-01",
           "enabled": true,
-          "projectSlug": "beats-midnight-cut",
+          "projectSlug": "hometree-f1-2025",
           "side": "right",
           "width": 1,
           "height": 2.4,
@@ -439,7 +439,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-07-screen-01",
           "enabled": true,
-          "projectSlug": "beats-midnight-cut",
+          "projectSlug": "elena-tokyo-nights-2025",
           "side": "right",
           "width": 1.1311160893683119,
           "height": 0.6945280986133097,
@@ -497,7 +497,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-08-screen-01",
           "enabled": true,
-          "projectSlug": "beats-midnight-cut",
+          "projectSlug": "full-metal-live-action-2025",
           "side": "right",
           "width": 1.1311160893683119,
           "height": 0.6945280986133097,
@@ -555,7 +555,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-09-screen-01",
           "enabled": true,
-          "projectSlug": "beats-midnight-cut",
+          "projectSlug": "invincible-live-action-1-2025",
           "side": "right",
           "width": 1.1311160893683119,
           "height": 0.6945280986133097,
