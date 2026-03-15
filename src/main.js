@@ -101,6 +101,14 @@ const screenHeightInput = document.querySelector(".screen-height");
 const screenTopOffsetInput = document.querySelector(".screen-top-offset");
 const screenOffsetAlongInput = document.querySelector(".screen-offset-along");
 const screenOffsetOutwardInput = document.querySelector(".screen-offset-outward");
+const projectEditorSelect = document.querySelector(".project-editor-select");
+const projectTitleInput = document.querySelector(".project-title-input");
+const projectClientInput = document.querySelector(".project-client-input");
+const projectDateInput = document.querySelector(".project-date-input");
+const projectSubtitleInput = document.querySelector(".project-subtitle-input");
+const projectStatsInput = document.querySelector(".project-stats-input");
+const projectAccentInput = document.querySelector(".project-accent-input");
+const projectDescriptionInput = document.querySelector(".project-description-input");
 const toolPreviewScreenButton = document.querySelector(".tool-preview-screen");
 const toolTopScreenButton = document.querySelector(".tool-top-screen");
 const toolAlignScreenButton = document.querySelector(".tool-align-screen");
@@ -270,6 +278,7 @@ const editorState = {
   mode: "browse",
   selectedBuildingId: null,
   selectedScreenId: null,
+  selectedProjectSlug: projects[0]?.slug ?? null,
   previewScreenKey: null
 };
 
@@ -277,6 +286,18 @@ document.body.dataset.introHidden = "true";
 introOverlay?.setAttribute("aria-hidden", "true");
 let sceneRebuildQueued = false;
 const cloneValue = (value) => JSON.parse(JSON.stringify(value));
+const PROJECT_OVERRIDES_STORAGE_KEY = "lab-city-project-overrides";
+const PROJECT_EDITABLE_FIELDS = [
+  "title",
+  "client",
+  "date",
+  "subtitle",
+  "stats",
+  "accent",
+  "description"
+];
+const baseProjects = projects.map((project) => cloneValue(project));
+let projectOverrides = {};
 
 const cameraState = {
   currentPosition: camera.position.clone(),
@@ -427,9 +448,72 @@ const loadSceneConfigFromStorage = () => {
     if (!raw) {
       return cloneSceneConfig(defaultSceneConfig);
     }
-    return normalizeSceneConfig(JSON.parse(raw), projects);
+    const nextSceneConfig = normalizeSceneConfig(JSON.parse(raw), projects);
+    if (Math.abs(nextSceneConfig.camera?.orbitPitch ?? 0) <= 1.2) {
+      nextSceneConfig.camera.orbitPitch = defaultSceneConfig.camera.orbitPitch;
+    }
+    return nextSceneConfig;
   } catch {
     return cloneSceneConfig(defaultSceneConfig);
+  }
+};
+
+const sanitizeProjectOverrides = (value) => {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const nextOverrides = {};
+  baseProjects.forEach((baseProject) => {
+    const candidate = value[baseProject.slug];
+    if (!candidate || typeof candidate !== "object") {
+      return;
+    }
+
+    const nextProjectOverride = {};
+    PROJECT_EDITABLE_FIELDS.forEach((field) => {
+      if (typeof candidate[field] === "string") {
+        nextProjectOverride[field] = candidate[field];
+      }
+    });
+
+    if (Object.keys(nextProjectOverride).length) {
+      nextOverrides[baseProject.slug] = nextProjectOverride;
+    }
+  });
+
+  return nextOverrides;
+};
+
+const applyProjectOverrides = (overrides = {}) => {
+  baseProjects.forEach((baseProject, index) => {
+    const nextProject = {
+      ...baseProject,
+      ...(overrides[baseProject.slug] ?? {})
+    };
+    const targetProject = projects[index];
+    Object.keys(targetProject).forEach((key) => {
+      if (!(key in nextProject)) {
+        delete targetProject[key];
+      }
+    });
+    Object.assign(targetProject, nextProject);
+  });
+};
+
+const saveProjectOverridesToStorage = () => {
+  window.localStorage.setItem(PROJECT_OVERRIDES_STORAGE_KEY, JSON.stringify(projectOverrides));
+};
+
+const loadProjectOverridesFromStorage = () => {
+  try {
+    const raw = window.localStorage.getItem(PROJECT_OVERRIDES_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    return sanitizeProjectOverrides(JSON.parse(raw));
+  } catch {
+    return {};
   }
 };
 
@@ -437,6 +521,9 @@ const findProjectBySlug = (slug) => projects.find((project) => project.slug === 
 const isMobileViewport = () => window.innerWidth <= 820;
 const resolveProjectBillboard = (object) => object?.userData?.linkedBillboard ?? object ?? null;
 const getScreenKey = (buildingId, screenId) => `${buildingId}:${screenId}`;
+
+projectOverrides = loadProjectOverridesFromStorage();
+applyProjectOverrides(projectOverrides);
 
 const applySceneConfigToCustomization = () => {
   customization.bgColor = sceneConfig.scene.bgColor;
@@ -926,7 +1013,8 @@ const refreshScreenTargetMedia = (target) => {
   }
 };
 
-const getBeaconLabelText = (project) => project.title;
+const getBeaconLabelText = (entry, project) =>
+  entry?.labelText?.trim() || project?.client || project?.title || "";
 
 const computeOutwardRotation = (x, z, organicOffset = 0) => {
   const outward = new THREE.Vector2(x, z);
@@ -1119,7 +1207,7 @@ const addScreenToBuilding = (entry, project) => {
   });
 
   if (entry.beaconLabel && entry.beaconLabelMaterial) {
-    const nextTexture = createBeaconLabelTexture(getBeaconLabelText(project), "#ffffff");
+    const nextTexture = createBeaconLabelTexture(getBeaconLabelText(entry, project), "#ffffff");
     if (entry.beaconLabelMaterial.map) {
       entry.beaconLabelMaterial.map.dispose();
     }
@@ -1599,7 +1687,7 @@ const createScreenTargetFromConfig = (entry, screenConfig) => {
   screenTargetsByKey.set(target.key, target);
 
   if (entry.beaconLabel && entry.beaconLabelMaterial) {
-    const labelTexture = createBeaconLabelTexture(getBeaconLabelText(project), "#ffffff");
+    const labelTexture = createBeaconLabelTexture(getBeaconLabelText(entry, project), "#ffffff");
     if (entry.beaconLabelMaterial.map) {
       entry.beaconLabelMaterial.map.dispose();
     }
@@ -1786,6 +1874,7 @@ const createBuildingFromConfig = (buildingConfig) => {
     id: buildingConfig.id,
     key: buildingConfig.key ?? getBuildingKey({ x: buildingConfig.position.x, z: buildingConfig.position.z }),
     config: buildingConfig,
+    labelText: buildingConfig.label.text || buildingConfig.id,
     group,
     x: buildingConfig.position.x,
     z: buildingConfig.position.z,
@@ -2017,6 +2106,53 @@ const getSelectedScreenConfig = () => {
   return building?.screens.find((screen) => screen.id === editorState.selectedScreenId) ?? null;
 };
 
+const getSelectedProjectConfig = () => {
+  const projectSlug =
+    editorState.selectedProjectSlug ??
+    getSelectedScreenConfig()?.projectSlug ??
+    projects[0]?.slug;
+  return projectSlug ? findProjectBySlug(projectSlug) : null;
+};
+
+const syncProjectOverrideForSlug = (slug) => {
+  const baseProject = baseProjects.find((project) => project.slug === slug);
+  const currentProject = projects.find((project) => project.slug === slug);
+  if (!baseProject || !currentProject) {
+    return;
+  }
+
+  const nextOverride = {};
+  PROJECT_EDITABLE_FIELDS.forEach((field) => {
+    if ((currentProject[field] ?? "") !== (baseProject[field] ?? "")) {
+      nextOverride[field] = currentProject[field] ?? "";
+    }
+  });
+
+  if (Object.keys(nextOverride).length) {
+    projectOverrides[slug] = nextOverride;
+  } else {
+    delete projectOverrides[slug];
+  }
+
+  saveProjectOverridesToStorage();
+};
+
+const invalidateProjectCaches = (slug) => {
+  const posterEntry = posterTextureCache.get(slug);
+  if (posterEntry?.texture) {
+    posterEntry.texture.dispose();
+  }
+  posterTextureCache.delete(slug);
+};
+
+const selectProjectForEditing = (slug) => {
+  if (!slug) {
+    return;
+  }
+  editorState.selectedProjectSlug = slug;
+  renderEditorControls();
+};
+
 const populateSelect = (select, options, selectedValue, fallbackLabel) => {
   if (!select) {
     return;
@@ -2056,6 +2192,10 @@ const renderEditorControls = () => {
 
   const selectedBuilding = getSelectedBuildingConfig();
   const selectedScreen = getSelectedScreenConfig();
+  if (!editorState.selectedProjectSlug) {
+    editorState.selectedProjectSlug = selectedScreen?.projectSlug ?? projects[0]?.slug ?? null;
+  }
+  const selectedProject = getSelectedProjectConfig();
   const screenOptions = selectedBuilding
     ? selectedBuilding.screens.map((screen) => ({
         value: screen.id,
@@ -2067,6 +2207,15 @@ const renderEditorControls = () => {
     screenProjectSelect,
     projects.map((project) => ({ value: project.slug, label: project.title })),
     selectedScreen?.projectSlug,
+    "No projects"
+  );
+  populateSelect(
+    projectEditorSelect,
+    projects.map((project) => ({
+      value: project.slug,
+      label: `${project.client} • ${project.title}`
+    })),
+    selectedProject?.slug,
     "No projects"
   );
 
@@ -2129,6 +2278,21 @@ const renderEditorControls = () => {
   [toolFaceBuildingButton, toolRebalanceHeightsButton].forEach((element) => {
     if (element) {
       element.disabled = !hasBuilding;
+    }
+  });
+
+  [
+    projectEditorSelect,
+    projectTitleInput,
+    projectClientInput,
+    projectDateInput,
+    projectSubtitleInput,
+    projectStatsInput,
+    projectAccentInput,
+    projectDescriptionInput
+  ].forEach((element) => {
+    if (element) {
+      element.disabled = !selectedProject;
     }
   });
 
@@ -2208,6 +2372,31 @@ const renderEditorControls = () => {
     screenOffsetOutwardInput.value = "";
   }
 
+  if (selectedProject) {
+    projectEditorSelect.value = selectedProject.slug;
+    projectTitleInput.value = selectedProject.title ?? "";
+    projectClientInput.value = selectedProject.client ?? "";
+    projectDateInput.value = selectedProject.date ?? "";
+    projectSubtitleInput.value = selectedProject.subtitle ?? "";
+    projectStatsInput.value = selectedProject.stats ?? "";
+    projectAccentInput.value = selectedProject.accent ?? "#ffffff";
+    projectDescriptionInput.value = selectedProject.description ?? "";
+  } else {
+    [
+      projectTitleInput,
+      projectClientInput,
+      projectDateInput,
+      projectSubtitleInput,
+      projectStatsInput,
+      projectDescriptionInput
+    ].forEach((input) => {
+      input.value = "";
+    });
+    if (projectAccentInput) {
+      projectAccentInput.value = "#ffffff";
+    }
+  }
+
   sceneBgColorInput.value = sceneConfig.scene.bgColor;
   sceneFogColorInput.value = sceneConfig.scene.fogColor;
   sceneFogNearInput.value = `${sceneConfig.scene.fogNear}`;
@@ -2255,6 +2444,7 @@ const selectBuilding = (buildingId, preferredScreenId = null) => {
   const building = getSelectedBuildingConfig();
   if (!building) {
     editorState.selectedScreenId = null;
+    editorState.selectedProjectSlug = projects[0]?.slug ?? null;
     renderEditorControls();
     return;
   }
@@ -2263,6 +2453,7 @@ const selectBuilding = (buildingId, preferredScreenId = null) => {
   } else {
     editorState.selectedScreenId = building.screens[0]?.id ?? null;
   }
+  editorState.selectedProjectSlug = building.screens[0]?.projectSlug ?? editorState.selectedProjectSlug;
   labelDirty = true;
   renderEditorControls();
 };
@@ -2270,6 +2461,7 @@ const selectBuilding = (buildingId, preferredScreenId = null) => {
 const selectScreen = (buildingId, screenId) => {
   editorState.selectedBuildingId = buildingId;
   editorState.selectedScreenId = screenId;
+  editorState.selectedProjectSlug = getSelectedScreenConfig()?.projectSlug ?? editorState.selectedProjectSlug;
   labelDirty = true;
   renderEditorControls();
 };
@@ -2322,7 +2514,14 @@ const getCameraFacingSideForBuilding = (building) => {
 };
 
 const downloadSceneConfig = () => {
-  const json = JSON.stringify(sceneConfig, null, 2);
+  const json = JSON.stringify(
+    {
+      sceneConfig,
+      projectOverrides
+    },
+    null,
+    2
+  );
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -2335,9 +2534,17 @@ const downloadSceneConfig = () => {
 };
 
 const loadSceneConfigState = (nextConfig) => {
-  sceneConfig = normalizeSceneConfig(nextConfig, projects);
+  const importedSceneConfig = nextConfig?.sceneConfig ?? nextConfig;
+  projectOverrides = sanitizeProjectOverrides(nextConfig?.projectOverrides ?? {});
+  applyProjectOverrides(projectOverrides);
+  saveProjectOverridesToStorage();
+  sceneConfig = normalizeSceneConfig(importedSceneConfig, projects);
+  if (Math.abs(sceneConfig.camera?.orbitPitch ?? 0) <= 1.2) {
+    sceneConfig.camera.orbitPitch = defaultSceneConfig.camera.orbitPitch;
+  }
   editorState.selectedBuildingId = null;
   editorState.selectedScreenId = null;
+  editorState.selectedProjectSlug = projects[0]?.slug ?? null;
   editorState.previewScreenKey = null;
   applySceneConfigToCustomization();
   buildCityFromConfig(sceneConfig);
@@ -2367,6 +2574,31 @@ const mutateSelectedScreen = (mutator) => {
   }
   mutator(screen, getSelectedBuildingConfig());
   refreshEditorFromSceneConfig({ rebuildCity: true });
+};
+
+const mutateSelectedProject = (mutator, { rebuildCity = false } = {}) => {
+  const project = getSelectedProjectConfig();
+  if (!project) {
+    return;
+  }
+
+  mutator(project);
+  syncProjectOverrideForSlug(project.slug);
+
+  if (selectedBillboard?.userData?.project?.slug === project.slug) {
+    updatePanel(project);
+  }
+  if (hoveredBillboard?.userData?.project?.slug === project.slug) {
+    clientLabel.textContent = project.client;
+    dateLabel.textContent = project.date;
+  }
+
+  if (rebuildCity) {
+    invalidateProjectCaches(project.slug);
+    scheduleCityRebuild();
+  } else {
+    renderEditorControls();
+  }
 };
 
 const updateCameraConfigFromInputs = () => {
@@ -3344,6 +3576,7 @@ screenProjectSelect?.addEventListener("input", () => {
   mutateSelectedScreen((screen) => {
     screen.projectSlug = screenProjectSelect.value;
   });
+  editorState.selectedProjectSlug = screenProjectSelect.value;
 });
 screenSideSelect?.addEventListener("input", () => {
   mutateSelectedScreen((screen) => {
@@ -3373,6 +3606,52 @@ bindNumberInput(screenOffsetAlongInput, (value) => {
 bindNumberInput(screenOffsetOutwardInput, (value) => {
   mutateSelectedScreen((screen) => {
     screen.offsetOutward = value;
+  });
+});
+
+projectEditorSelect?.addEventListener("input", () => {
+  selectProjectForEditing(projectEditorSelect.value);
+});
+
+projectTitleInput?.addEventListener("input", () => {
+  mutateSelectedProject((project) => {
+    project.title = projectTitleInput.value;
+  }, { rebuildCity: true });
+});
+
+projectClientInput?.addEventListener("input", () => {
+  mutateSelectedProject((project) => {
+    project.client = projectClientInput.value;
+  }, { rebuildCity: true });
+});
+
+projectDateInput?.addEventListener("input", () => {
+  mutateSelectedProject((project) => {
+    project.date = projectDateInput.value;
+  }, { rebuildCity: true });
+});
+
+projectSubtitleInput?.addEventListener("input", () => {
+  mutateSelectedProject((project) => {
+    project.subtitle = projectSubtitleInput.value;
+  });
+});
+
+projectStatsInput?.addEventListener("input", () => {
+  mutateSelectedProject((project) => {
+    project.stats = projectStatsInput.value;
+  });
+});
+
+projectAccentInput?.addEventListener("input", () => {
+  mutateSelectedProject((project) => {
+    project.accent = projectAccentInput.value;
+  }, { rebuildCity: true });
+});
+
+projectDescriptionInput?.addEventListener("input", () => {
+  mutateSelectedProject((project) => {
+    project.description = projectDescriptionInput.value;
   });
 });
 

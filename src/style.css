@@ -238,6 +238,27 @@ p {
   border-color: rgba(255, 255, 255, 0.22);
 }
 
+.customize-trigger {
+  position: relative;
+  z-index: 1;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+
+.customize-trigger:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.11);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
 .about-panel {
   position: fixed;
   left: var(--logo-card-left);
@@ -257,6 +278,85 @@ p {
 
 .about-panel[aria-hidden="true"] {
   display: none;
+}
+
+.customize-panel {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: min(420px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  background: rgba(18, 7, 12, 0.78);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.38);
+  z-index: 12;
+}
+
+.customize-panel[aria-hidden="true"] {
+  display: none;
+}
+
+.customize-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.customize-kicker {
+  margin: 0 0 6px;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.customize-title {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 0.96;
+  letter-spacing: -0.04em;
+}
+
+.customize-close {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.customize-body {
+  overflow-y: auto;
+  padding-right: 6px;
+  display: grid;
+  gap: 16px;
+}
+
+.customize-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.customize-section h3 {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
 }
 
 .control-field {
@@ -697,6 +797,15 @@ a:visited {
   .control-grid,
   .control-grid-three {
     grid-template-columns: 1fr;
+  }
+
+  .customize-panel {
+    top: auto;
+    right: 14px;
+    left: 14px;
+    bottom: 14px;
+    width: auto;
+    max-height: calc(100vh - 28px);
   }
 
   .project-panel {
