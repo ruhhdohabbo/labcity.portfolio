@@ -3549,7 +3549,7 @@ playerElement?.addEventListener("play", () => {
   playerElement.controls = true;
 });
 
-panelClose.addEventListener("click", (event) => {
+panelClose?.addEventListener("click", (event) => {
   event.preventDefault();
   event.stopPropagation();
   closeFocusedProject();
