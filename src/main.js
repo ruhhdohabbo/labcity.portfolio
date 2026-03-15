@@ -270,6 +270,10 @@ let occlusionDirty = true;
 let resizeDirty = true;
 let smokePhase = 0;
 let mobileDetailsOpen = false;
+let fovDragActive = false;
+let fovDragStartY = 0;
+let fovDragStartFov = 0;
+let suppressCanvasClick = false;
 const introReturnDelay = 10000;
 const defaultSceneConfig = createDefaultSceneConfig(projects);
 let sceneConfig = cloneSceneConfig(defaultSceneConfig);
@@ -436,6 +440,21 @@ const updateQualityMode = () => {
   renderer.shadowMap.enabled = qualityMode === "high" && window.innerWidth > 800;
   frontSpotLight.castShadow = renderer.shadowMap.enabled;
 };
+
+const getFovRange = () => {
+  const min = cameraFovInput?.min ? Number(cameraFovInput.min) : 12;
+  const max = cameraFovInput?.max ? Number(cameraFovInput.max) : 60;
+  return {
+    min: Number.isFinite(min) ? min : 12,
+    max: Number.isFinite(max) ? max : 60
+  };
+};
+
+const canDragFov = () =>
+  editorState.mode === "browse" &&
+  !selectedBillboard &&
+  !aboutOpen &&
+  !customizeOpen;
 
 const saveSceneConfigToStorage = () => {
   sceneConfig.meta.updatedAt = new Date().toISOString();
@@ -3151,6 +3170,18 @@ const applyCustomization = () => {
 const onMouseMove = (event) => {
   pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
   pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  if (fovDragActive) {
+    const deltaY = event.clientY - fovDragStartY;
+    const { min, max } = getFovRange();
+    const nextFov = THREE.MathUtils.clamp(fovDragStartFov + deltaY * 0.05, min, max);
+    if (Math.abs(deltaY) > 3) {
+      suppressCanvasClick = true;
+    }
+    customization.cameraFov = nextFov;
+    sceneConfig.camera.fov = nextFov;
+    applyCustomization();
+    saveSceneConfigToStorage();
+  }
   interactionDirty = true;
   labelDirty = true;
 };
@@ -3169,8 +3200,29 @@ const onTouch = (event) => {
 window.addEventListener("mousemove", onMouseMove, false);
 window.addEventListener("touchstart", onTouch, false);
 window.addEventListener("touchmove", onTouch, false);
+window.addEventListener("mouseup", () => {
+  if (!fovDragActive) {
+    return;
+  }
+  fovDragActive = false;
+  saveSceneConfigToStorage();
+});
+
+canvas.addEventListener("mousedown", (event) => {
+  if (event.button !== 0 || !canDragFov()) {
+    return;
+  }
+  fovDragActive = true;
+  fovDragStartY = event.clientY;
+  fovDragStartFov = customization.cameraFov;
+  suppressCanvasClick = false;
+});
 
 canvas.addEventListener("click", () => {
+  if (suppressCanvasClick) {
+    suppressCanvasClick = false;
+    return;
+  }
   if (aboutOpen) {
     return;
   }
@@ -3806,7 +3858,7 @@ setEditorMode(sceneConfig.camera.mode ?? "browse");
 renderEditorControls();
 window.setTimeout(() => {
   restoreIntro();
-}, 120);
+}, 420);
 
 const animate = () => {
   const elapsed = clock.getElapsedTime();

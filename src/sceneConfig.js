@@ -8,7 +8,7 @@ const normalizeBool = (value, fallback) => (typeof value === "boolean" ? value :
 const DEFAULT_SCENE_TEMPLATE = {
   "meta": {
     "version": 2,
-    "updatedAt": "2026-03-14T20:17:08.932Z"
+    "updatedAt": "2026-03-15T05:28:54.292Z"
   },
   "camera": {
     "mode": "browse",
@@ -21,13 +21,13 @@ const DEFAULT_SCENE_TEMPLATE = {
       "y": 4.5,
       "z": 0
     },
-    "fov": 35.9
+    "fov": 36.900000000000006
   },
   "scene": {
     "bgColor": "#f02050",
     "fogColor": "#f02050",
-    "fogNear": 12.8,
-    "fogFar": 21.7,
+    "fogNear": 13.4,
+    "fogFar": 21.8,
     "ambientIntensity": 4,
     "frontLightIntensity": 20,
     "backLightIntensity": 0.5,
@@ -93,8 +93,8 @@ const DEFAULT_SCENE_TEMPLATE = {
           "enabled": true,
           "projectSlug": "riosul-natal-2025",
           "side": "right",
-          "width": 1,
-          "height": 2.1,
+          "width": 1.4,
+          "height": 1.8,
           "topOffset": 0.28,
           "offsetAlongFace": 0,
           "offsetOutward": 0.03
@@ -267,8 +267,8 @@ const DEFAULT_SCENE_TEMPLATE = {
           "enabled": true,
           "projectSlug": "elena-tokyo-nights-2025",
           "side": "right",
-          "width": 1.2,
-          "height": 2.2,
+          "width": 1.15,
+          "height": 1.8,
           "topOffset": 0.28,
           "offsetAlongFace": 0,
           "offsetOutward": 0.03
@@ -326,7 +326,7 @@ const DEFAULT_SCENE_TEMPLATE = {
           "projectSlug": "prio-campos-maduros-2025",
           "side": "right",
           "width": 1,
-          "height": 2.4,
+          "height": 1.8,
           "topOffset": 0.28,
           "offsetAlongFace": 0,
           "offsetOutward": 0.03
@@ -384,7 +384,7 @@ const DEFAULT_SCENE_TEMPLATE = {
           "projectSlug": "prio-esta-em-tudo-2025",
           "side": "right",
           "width": 1,
-          "height": 2.1,
+          "height": 1.8,
           "topOffset": 0.28,
           "offsetAlongFace": 0,
           "offsetOutward": 0.03
@@ -403,7 +403,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       "dimensions": {
         "width": 1,
         "depth": 1.7,
-        "height": 5.1
+        "height": 5.35
       },
       "cap": {
         "enabled": true,
@@ -442,7 +442,7 @@ const DEFAULT_SCENE_TEMPLATE = {
           "projectSlug": "elena-natal-2025",
           "side": "right",
           "width": 1.1311160893683119,
-          "height": 0.6945280986133097,
+          "height": 1.8,
           "topOffset": 0.28,
           "offsetAlongFace": 0,
           "offsetOutward": 0.03
@@ -499,7 +499,7 @@ const DEFAULT_SCENE_TEMPLATE = {
           "enabled": true,
           "projectSlug": "full-metal-live-action-2025",
           "side": "right",
-          "width": 1.1311160893683119,
+          "width": 0.9,
           "height": 0.6945280986133097,
           "topOffset": 0.28,
           "offsetAlongFace": 0,
@@ -557,7 +557,7 @@ const DEFAULT_SCENE_TEMPLATE = {
           "enabled": true,
           "projectSlug": "invincible-live-action-1-2025",
           "side": "right",
-          "width": 1.1311160893683119,
+          "width": 0.85,
           "height": 0.6945280986133097,
           "topOffset": 0.28,
           "offsetAlongFace": 0,
@@ -577,7 +577,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       "dimensions": {
         "width": 1.4,
         "depth": 1.5,
-        "height": 4.3
+        "height": 4.35
       },
       "cap": {
         "enabled": false,
@@ -635,7 +635,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       "dimensions": {
         "width": 1.2,
         "depth": 1,
-        "height": 4.3
+        "height": 4.55
       },
       "cap": {
         "enabled": false,
@@ -693,7 +693,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       "dimensions": {
         "width": 1.4,
         "depth": 1,
-        "height": 7.4
+        "height": 7.45
       },
       "cap": {
         "enabled": false,
@@ -844,6 +844,180 @@ const DEFAULT_SCENE_TEMPLATE = {
       "screens": [
         {
           "id": "tower-15-screen-01",
+          "enabled": false,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-16",
+      "key": "-10.95,-1.15",
+      "enabled": true,
+      "position": {
+        "x": -10.95,
+        "z": -1.15
+      },
+      "rotationY": -1.23,
+      "dimensions": {
+        "width": 1.4,
+        "depth": 1.5,
+        "height": 3.7
+      },
+      "cap": {
+        "enabled": false,
+        "width": 1.16,
+        "depth": 1.02,
+        "height": 0.37
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": false,
+        "text": "Midnight Cut copy copy copy copy",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": false,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-16-screen-01",
+          "enabled": false,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-17",
+      "key": "-12.05,-3.6",
+      "enabled": true,
+      "position": {
+        "x": -12.05,
+        "z": -3.6
+      },
+      "rotationY": -1.16,
+      "dimensions": {
+        "width": 1.4,
+        "depth": 1,
+        "height": 6.95
+      },
+      "cap": {
+        "enabled": false,
+        "width": 1.16,
+        "depth": 1.02,
+        "height": 0.37
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": false,
+        "text": "Midnight Cut copy copy copy copy copy",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": false,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-17-screen-01",
+          "enabled": false,
+          "projectSlug": "beats-midnight-cut",
+          "side": "right",
+          "width": 1.1311160893683119,
+          "height": 0.6945280986133097,
+          "topOffset": 0.28,
+          "offsetAlongFace": 0,
+          "offsetOutward": 0.03
+        }
+      ]
+    },
+    {
+      "id": "tower-18",
+      "key": "10.2,-2.9",
+      "enabled": true,
+      "position": {
+        "x": 10.2,
+        "z": -2.9
+      },
+      "rotationY": 0.88,
+      "dimensions": {
+        "width": 1.3,
+        "depth": 1.1,
+        "height": 5.75
+      },
+      "cap": {
+        "enabled": false,
+        "width": 1.16,
+        "depth": 1.02,
+        "height": 0.37
+      },
+      "sideCore": {
+        "enabled": true,
+        "width": 0.36,
+        "depth": 0.56,
+        "height": 2.49952493408692,
+        "offsetX": 0.54,
+        "offsetZ": -0.22719999999999999
+      },
+      "label": {
+        "enabled": false,
+        "text": "Midnight Cut copy copy copy copy copy copy",
+        "color": "#ffffff",
+        "offsetY": 0.44
+      },
+      "beacon": {
+        "enabled": false,
+        "color": "#ff4a73",
+        "offsetY": 0.22
+      },
+      "defaultScreen": {
+        "width": 1.1311160893683119,
+        "height": 0.6945280986133097
+      },
+      "prominence": 6.978268245167074,
+      "screens": [
+        {
+          "id": "tower-18-screen-01",
           "enabled": false,
           "projectSlug": "beats-midnight-cut",
           "side": "right",
