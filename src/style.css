@@ -828,11 +828,15 @@ a:visited {
   }
 
   .intro-overlay-text {
-    max-width: 90vw;
-    font-size: clamp(2.6rem, 9.6vw, 5rem);
+    max-width: min(94vw, 760px);
+    width: auto;
+    padding: 0;
+    font-size: clamp(2.2rem, 8vw, 3.45rem);
     line-height: 0.94;
     white-space: normal;
+    letter-spacing: -0.07em;
     text-wrap: balance;
+    text-align: center;
   }
 
   .header {
@@ -887,10 +891,7 @@ a:visited {
   }
 
   .hint {
-    left: 14px;
-    right: 14px;
-    justify-content: center;
-    flex-wrap: wrap;
+    display: none;
   }
 
   .case-back {
@@ -1148,9 +1149,14 @@ a:visited {
   }
 
   .intro-overlay-text {
-    max-width: 92vw;
-    font-size: clamp(3rem, 11vw, 4.9rem);
+    max-width: 94vw;
+    width: auto;
+    padding: 0;
+    font-size: clamp(2.05rem, 8.4vw, 3.05rem);
     line-height: 0.92;
+    white-space: normal;
+    text-wrap: balance;
+    text-align: center;
   }
 
   .header-content {
