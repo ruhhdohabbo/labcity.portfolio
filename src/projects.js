@@ -16,8 +16,8 @@ export const projects = [
   },
   {
     slug: "hometree-f1-2025",
-    title: "FÓRMULA 1 HOMETREE",
-    client: "HOMETREE",
+    title: "Fórmula 1 Hometree",
+    client: "Hometree",
     date: "2025",
     subtitle: "HOMETREE - 2025",
     accent: "#7dff68",
