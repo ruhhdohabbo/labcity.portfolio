@@ -39,7 +39,7 @@
               <button class="about-close" type="button" aria-label="Fechar sobre">Fechar</button>
               <div class="about-copy">
                 <div class="about-media">
-                  <img src="./assets/fundador-foto.png" alt="Foto de Rubens Bonon" class="about-photo" />
+                  <img src="./assets/fundador-foto-preto.jpeg" alt="Foto de Rubens Bonon" class="about-photo" />
                 </div>
                 <div class="about-copy-main">
                   <p class="about-kicker">Fundador</p>
@@ -81,9 +81,8 @@
           <span>Voltar para a cidade</span>
           <span class="panel-close-key">Esc</span>
         </button>
-        <p class="panel-kicker">Case Study</p>
-        <h2 class="panel-title">Escolha uma tela</h2>
         <p class="panel-meta">Passe o mouse sobre um prédio e clique para abrir o case.</p>
+        <h2 class="panel-title">Escolha uma tela</h2>
         <p class="panel-stats" hidden></p>
         <p class="panel-description">
           As telas dos prédios usam os vídeos do portfólio como superfície principal e abrem o
@@ -91,9 +90,38 @@
         </p>
       </aside>
 
+      <button class="case-back" type="button" aria-label="Voltar para a cidade">
+        <span class="case-back-icon">←</span>
+        <span>Back</span>
+      </button>
+
+      <div class="case-nav" aria-hidden="true">
+        <button class="case-nav-button case-nav-prev" type="button" aria-label="Projeto anterior">←</button>
+        <button class="case-nav-button case-nav-next" type="button" aria-label="Próximo projeto">→</button>
+      </div>
+
       <div class="video-player-overlay" aria-hidden="true">
         <video class="video-player" controls playsinline preload="metadata"></video>
       </div>
+
+      <button class="mobile-details-trigger" type="button" aria-hidden="true" aria-label="Abrir descrição do projeto">
+        <span>→</span>
+      </button>
+
+      <aside class="mobile-details-sheet" aria-hidden="true">
+        <div class="mobile-details-header">
+          <button class="mobile-details-back" type="button" aria-label="Voltar para o player">←</button>
+          <button class="mobile-details-close" type="button" aria-label="Voltar para a cidade">Voltar</button>
+        </div>
+        <div class="mobile-details-content">
+          <p class="mobile-details-meta">CLIENTE - 2025</p>
+          <h2 class="mobile-details-title">Título do projeto</h2>
+          <p class="mobile-details-stats" hidden></p>
+          <p class="mobile-details-description">
+            A descrição completa do projeto aparece aqui no mobile, em uma tela própria, para não disputar espaço com o player.
+          </p>
+        </div>
+      </aside>
 
     </div>
   </body>

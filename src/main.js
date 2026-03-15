@@ -17,16 +17,27 @@ const clientLabel = document.querySelector(".project-client");
 const dateLabel = document.querySelector(".project-date");
 const panel = document.querySelector(".project-panel");
 const panelClose = document.querySelector(".panel-close");
+const caseBack = document.querySelector(".case-back");
+const caseNav = document.querySelector(".case-nav");
+const casePrev = document.querySelector(".case-nav-prev");
+const caseNext = document.querySelector(".case-nav-next");
 const panelTitle = document.querySelector(".panel-title");
 const panelMeta = document.querySelector(".panel-meta");
 const panelStats = document.querySelector(".panel-stats");
 const panelDescription = document.querySelector(".panel-description");
-const panelKicker = document.querySelector(".panel-kicker");
 const header = document.querySelector(".header");
 const hint = document.querySelector(".hint");
 const aboutTrigger = document.querySelector(".about-trigger");
 const aboutPanel = document.querySelector(".about-panel");
 const aboutClose = document.querySelector(".about-close");
+const mobileDetailsTrigger = document.querySelector(".mobile-details-trigger");
+const mobileDetailsSheet = document.querySelector(".mobile-details-sheet");
+const mobileDetailsBack = document.querySelector(".mobile-details-back");
+const mobileDetailsClose = document.querySelector(".mobile-details-close");
+const mobileDetailsMeta = document.querySelector(".mobile-details-meta");
+const mobileDetailsTitle = document.querySelector(".mobile-details-title");
+const mobileDetailsStats = document.querySelector(".mobile-details-stats");
+const mobileDetailsDescription = document.querySelector(".mobile-details-description");
 const customizeTrigger = document.querySelector(".customize-trigger");
 const customizePanel = document.querySelector(".customize-panel");
 const customizeClose = document.querySelector(".customize-close");
@@ -216,6 +227,7 @@ const occlusionOffsets = [
 ];
 
 const billboardMeshes = [];
+const projectHitMeshes = [];
 const interactiveMeshes = [];
 const buildingSelectMeshes = [];
 const billboardTargets = [];
@@ -240,7 +252,7 @@ let occlusionFocused = false;
 let occlusionSelection = null;
 let aboutOpen = false;
 let customizeOpen = false;
-let introHidden = false;
+let introHidden = true;
 let homeIdleStartedAt = 0;
 let qualityMode = window.innerWidth < 900 ? "reduced" : "high";
 let interactionDirty = true;
@@ -249,6 +261,7 @@ let overlayDirty = true;
 let occlusionDirty = true;
 let resizeDirty = true;
 let smokePhase = 0;
+let mobileDetailsOpen = false;
 const introReturnDelay = 10000;
 const defaultSceneConfig = createDefaultSceneConfig(projects);
 let sceneConfig = cloneSceneConfig(defaultSceneConfig);
@@ -259,6 +272,9 @@ const editorState = {
   selectedScreenId: null,
   previewScreenKey: null
 };
+
+document.body.dataset.introHidden = "true";
+introOverlay?.setAttribute("aria-hidden", "true");
 let sceneRebuildQueued = false;
 const cloneValue = (value) => JSON.parse(JSON.stringify(value));
 
@@ -357,6 +373,9 @@ const restoreIntro = () => {
 
 const setAboutOpen = (open) => {
   aboutOpen = open;
+  if (open) {
+    setMobileDetailsOpen(false);
+  }
   document.body.dataset.about = open ? "true" : "false";
   if (aboutPanel) {
     aboutPanel.hidden = !open;
@@ -366,6 +385,14 @@ const setAboutOpen = (open) => {
   interactionDirty = true;
   overlayDirty = true;
   occlusionDirty = true;
+};
+
+const setMobileDetailsOpen = (open) => {
+  mobileDetailsOpen = open;
+  mobileDetailsSheet?.setAttribute("aria-hidden", open ? "false" : "true");
+  if (!open) {
+    mobileDetailsTrigger?.setAttribute("aria-expanded", "false");
+  }
 };
 
 const setCustomizeOpen = (open) => {
@@ -407,6 +434,8 @@ const loadSceneConfigFromStorage = () => {
 };
 
 const findProjectBySlug = (slug) => projects.find((project) => project.slug === slug) ?? projects[0];
+const isMobileViewport = () => window.innerWidth <= 820;
+const resolveProjectBillboard = (object) => object?.userData?.linkedBillboard ?? object ?? null;
 const getScreenKey = (buildingId, screenId) => `${buildingId}:${screenId}`;
 
 const applySceneConfigToCustomization = () => {
@@ -688,7 +717,7 @@ const makeVideoAsset = (project) => {
   video.loop = true;
   video.muted = true;
   video.playsInline = true;
-  video.preload = "metadata";
+  video.preload = "auto";
   video.crossOrigin = "anonymous";
 
   const frameCanvas = document.createElement("canvas");
@@ -1053,6 +1082,7 @@ const addScreenToBuilding = (entry, project) => {
   };
   screenMount.add(screen);
   interactiveMeshes.push(screen);
+  projectHitMeshes.push(screen);
 
   const glow = new THREE.PointLight(project.accent, 1.2, 3.6, 2);
   glow.position.set(0, 0, 0.35);
@@ -1099,6 +1129,7 @@ const addScreenToBuilding = (entry, project) => {
     entry.beaconLabel.userData.project = project;
     entry.beaconLabel.userData.linkedBillboard = screen;
     interactiveMeshes.push(entry.beaconLabel);
+    projectHitMeshes.push(entry.beaconLabel);
   }
 };
 
@@ -1150,120 +1181,15 @@ const updateFocusedOcclusionTargets = () => {
     return;
   }
   occlusionFocused = true;
-  if (occlusionSelection !== selectedBillboard) {
-    occlusionSelection = selectedBillboard;
-    buildingEntries.forEach((entry) => {
-      entry.occlusionLocked = false;
-    });
-  }
-
-  selectedBillboard.getWorldPosition(tempVector);
-  selectedBillboard.getWorldQuaternion(tempQuaternion);
-  occlusionRight.set(1, 0, 0).applyQuaternion(tempQuaternion).normalize();
-  occlusionUp.set(0, 1, 0).applyQuaternion(tempQuaternion).normalize();
-
-  const geometryWidth = selectedBillboard.geometry.parameters.width;
-  const geometryHeight = selectedBillboard.geometry.parameters.height;
-  const halfWidth = (geometryWidth * selectedBillboard.scale.x) / 2;
-  const halfHeight = (geometryHeight * selectedBillboard.scale.y) / 2;
-
-  billboardCornerPoints[0]
-    .copy(tempVector)
-    .addScaledVector(occlusionRight, -halfWidth)
-    .addScaledVector(occlusionUp, -halfHeight);
-  billboardCornerPoints[1]
-    .copy(tempVector)
-    .addScaledVector(occlusionRight, halfWidth)
-    .addScaledVector(occlusionUp, -halfHeight);
-  billboardCornerPoints[2]
-    .copy(tempVector)
-    .addScaledVector(occlusionRight, -halfWidth)
-    .addScaledVector(occlusionUp, halfHeight);
-  billboardCornerPoints[3]
-    .copy(tempVector)
-    .addScaledVector(occlusionRight, halfWidth)
-    .addScaledVector(occlusionUp, halfHeight);
-  projectPointsToRect(billboardCornerPoints, camera, selectedScreenRect);
-  let selectedClosestDepth = -Infinity;
-  billboardCornerPoints.forEach((point) => {
-    const depth = cameraSpaceVector.copy(point).applyMatrix4(camera.matrixWorldInverse).z;
-    selectedClosestDepth = Math.max(selectedClosestDepth, depth);
-  });
-
+  occlusionSelection = selectedBillboard;
   buildingEntries.forEach((entry) => {
     if (entry === selectedEntry) {
       entry.occlusionLocked = false;
       setBuildingVisibilityTarget(entry, 1);
       return;
     }
-
-    entry.worldBounds.copy(entry.localBounds).applyMatrix4(entry.group.matrixWorld);
-    occlusionBox.copy(entry.worldBounds).expandByScalar(0.28);
-    occlusionBox.getCenter(occlusionCenter);
-    let isBlocker = false;
-
-    boxCornerPoints[0].set(occlusionBox.min.x, occlusionBox.min.y, occlusionBox.min.z);
-    boxCornerPoints[1].set(occlusionBox.min.x, occlusionBox.min.y, occlusionBox.max.z);
-    boxCornerPoints[2].set(occlusionBox.min.x, occlusionBox.max.y, occlusionBox.min.z);
-    boxCornerPoints[3].set(occlusionBox.min.x, occlusionBox.max.y, occlusionBox.max.z);
-    boxCornerPoints[4].set(occlusionBox.max.x, occlusionBox.min.y, occlusionBox.min.z);
-    boxCornerPoints[5].set(occlusionBox.max.x, occlusionBox.min.y, occlusionBox.max.z);
-    boxCornerPoints[6].set(occlusionBox.max.x, occlusionBox.max.y, occlusionBox.min.z);
-    boxCornerPoints[7].set(occlusionBox.max.x, occlusionBox.max.y, occlusionBox.max.z);
-    projectPointsToRect(boxCornerPoints, camera, buildingRect);
-    let closestBuildingDepth = -Infinity;
-    boxCornerPoints.forEach((point) => {
-      const depth = cameraSpaceVector.copy(point).applyMatrix4(camera.matrixWorldInverse).z;
-      closestBuildingDepth = Math.max(closestBuildingDepth, depth);
-    });
-
-    if (
-      closestBuildingDepth > selectedClosestDepth - 0.04 &&
-      rectsOverlap(buildingRect, selectedScreenRect, 0.08)
-    ) {
-      isBlocker = true;
-    }
-
-    for (const [offsetX, offsetY] of occlusionOffsets) {
-      if (isBlocker) {
-        break;
-      }
-      occlusionTargetPoint
-        .copy(tempVector)
-        .addScaledVector(occlusionRight, halfWidth * offsetX)
-        .addScaledVector(occlusionUp, halfHeight * offsetY);
-
-      occlusionLine.start.copy(cameraState.goalPosition);
-      occlusionLine.end.copy(occlusionTargetPoint);
-      occlusionDirection.subVectors(occlusionLine.end, occlusionLine.start);
-      const focusDistance = occlusionDirection.length();
-
-      if (focusDistance < 0.001) {
-        continue;
-      }
-
-      occlusionDirection.normalize();
-      const projectedDistance = occlusionCenter
-        .clone()
-        .sub(cameraState.goalPosition)
-        .dot(occlusionDirection);
-      const isBetweenCameraAndScreen =
-        projectedDistance > 0.2 && projectedDistance < focusDistance - 0.12;
-      occlusionRay.origin.copy(occlusionLine.start);
-      occlusionRay.direction.copy(occlusionDirection);
-      const hitPoint = occlusionRay.intersectBox(occlusionBox, occlusionHit);
-      const hitDistance = hitPoint ? hitPoint.distanceTo(occlusionLine.start) : Infinity;
-
-      if (isBetweenCameraAndScreen && hitDistance < focusDistance - 0.12) {
-        isBlocker = true;
-        break;
-      }
-    }
-
-    if (isBlocker) {
-      entry.occlusionLocked = true;
-    }
-    setBuildingVisibilityTarget(entry, entry.occlusionLocked ? 0 : 1);
+    entry.occlusionLocked = true;
+    setBuildingVisibilityTarget(entry, 0.1);
   });
 };
 
@@ -1441,9 +1367,7 @@ const updateBeaconLabels = () => {
 
     const isSelectedBuilding = editorState.selectedBuildingId === entry.id;
     const isHovered = hoveredBillboard?.userData?.buildingId === entry.id;
-    const targetColor = new THREE.Color(
-      isSelectedBuilding ? "#ffdf68" : entry.config.label.color || "#ffffff"
-    );
+    const targetColor = new THREE.Color("#ffffff");
     const scale = isSelectedBuilding ? 1.18 : isHovered ? 1.08 : 1;
     entry.beaconLabelMaterial.color.lerp(targetColor, 0.18);
     entry.beaconLabel.scale.lerp(new THREE.Vector3(1.16 * scale, 0.28 * scale, 1), 0.18);
@@ -1464,7 +1388,7 @@ const createParticles = () => {
     color: 0xffff99,
     side: THREE.DoubleSide
   });
-  const particularGeometry = new THREE.CircleGeometry(0.015, 4);
+  const particularGeometry = new THREE.CircleGeometry(0.03, 4);
   const particleCount = qualityMode === "reduced" ? 96 : 160;
   for (let i = 0; i < particleCount; i += 1) {
     const particle = new THREE.Mesh(particularGeometry, particularMaterial);
@@ -1480,7 +1404,7 @@ const createRoadLines = () => {
   const colors = [0xffff66, 0xffffff, 0xff8e5c];
   for (let i = 0; i < 18; i += 1) {
     const line = new THREE.Mesh(
-      new THREE.BoxGeometry(0.8, 0.03, 0.05),
+      new THREE.BoxGeometry(1.05, 0.05, 0.08),
       new THREE.MeshToonMaterial({ color: colors[i % colors.length] })
     );
     const lane = i % 2 === 0 ? "x" : "z";
@@ -1510,6 +1434,7 @@ const clearCityAuthoringState = () => {
     target.displayTexture?.dispose?.();
   });
   clearCollection(billboardMeshes);
+  clearCollection(projectHitMeshes);
   clearCollection(interactiveMeshes);
   clearCollection(buildingSelectMeshes);
   clearCollection(billboardTargets);
@@ -1625,6 +1550,7 @@ const createScreenTargetFromConfig = (entry, screenConfig) => {
   screenMount.add(screen);
   interactiveMeshes.push(screen);
   billboardMeshes.push(screen);
+  projectHitMeshes.push(screen);
 
   const glow = new THREE.PointLight(project.accent, 1.2, 3.6, 2);
   glow.position.set(0, 0, 0.35);
@@ -1671,6 +1597,22 @@ const createScreenTargetFromConfig = (entry, screenConfig) => {
   refreshScreenTargetMedia(target);
   billboardTargets.push(target);
   screenTargetsByKey.set(target.key, target);
+
+  if (entry.beaconLabel && entry.beaconLabelMaterial) {
+    const labelTexture = createBeaconLabelTexture(getBeaconLabelText(project), "#ffffff");
+    if (entry.beaconLabelMaterial.map) {
+      entry.beaconLabelMaterial.map.dispose();
+    }
+    entry.beaconLabelMaterial.map = labelTexture;
+    entry.beaconLabelMaterial.color.set("#ffffff");
+    entry.beaconLabelMaterial.needsUpdate = true;
+    entry.beaconLabel.userData.project = project;
+    entry.beaconLabel.userData.linkedBillboard = screen;
+    if (!projectHitMeshes.includes(entry.beaconLabel)) {
+      projectHitMeshes.push(entry.beaconLabel);
+    }
+  }
+
   return target;
 };
 
@@ -1698,7 +1640,7 @@ const queueVisibleBillboardFirstFrames = () => {
     ensureVideoAssetLoaded(assetsToPreload[index]);
     window.setTimeout(() => {
       pump(index + 1);
-    }, 160);
+    }, 40);
   };
 
   pump(0);
@@ -1809,7 +1751,7 @@ const createBuildingFromConfig = (buildingConfig) => {
   if (buildingConfig.label.enabled) {
     const beaconLabelTexture = createBeaconLabelTexture(
       buildingConfig.label.text || buildingConfig.id,
-      buildingConfig.label.color
+      "#ffffff"
     );
     beaconLabel = new THREE.Sprite(
       new THREE.SpriteMaterial({
@@ -1817,7 +1759,7 @@ const createBuildingFromConfig = (buildingConfig) => {
         transparent: true,
         depthWrite: false,
         opacity: 1,
-        color: buildingConfig.label.color
+        color: "#ffffff"
       })
     );
     beaconLabel.position.set(
@@ -2457,27 +2399,79 @@ const bindCheckboxInput = (input, callback) => {
 const updatePanel = (project) => {
   if (!project) {
     panel.dataset.open = "false";
-    panelKicker.textContent = "Case Study";
-    panelTitle.textContent = "Escolha uma tela";
     panelMeta.textContent = "Passe o mouse sobre um prédio e clique para abrir o case.";
+    panelTitle.textContent = "Escolha uma tela";
     if (panelStats) {
       panelStats.textContent = "";
       panelStats.hidden = true;
     }
     panelDescription.textContent =
       "A cidade mistura o mood original Lab City com os outdoors de vídeo do portfólio.";
+    if (mobileDetailsMeta) {
+      mobileDetailsMeta.textContent = panelMeta.textContent;
+      mobileDetailsTitle.textContent = panelTitle.textContent;
+      mobileDetailsStats.textContent = "";
+      mobileDetailsStats.hidden = true;
+      mobileDetailsDescription.textContent = panelDescription.textContent;
+    }
     return;
   }
 
   panel.dataset.open = "true";
-  panelKicker.textContent = "Case Study";
-  panelTitle.textContent = project.title;
   panelMeta.textContent = project.subtitle ?? `${project.client}  •  ${project.date}`;
+  panelTitle.textContent = project.title;
   if (panelStats) {
     panelStats.textContent = project.stats ?? "";
     panelStats.hidden = !project.stats;
   }
   panelDescription.textContent = project.description;
+  if (mobileDetailsMeta) {
+    mobileDetailsMeta.textContent = panelMeta.textContent;
+    mobileDetailsTitle.textContent = panelTitle.textContent;
+    mobileDetailsStats.textContent = project.stats ?? "";
+    mobileDetailsStats.hidden = !project.stats;
+    mobileDetailsDescription.textContent = project.description;
+  }
+};
+
+const getBrowsableProjectSlugs = () =>
+  projects
+    .map(({ slug }) => slug)
+    .filter((slug, index, collection) =>
+      collection.indexOf(slug) === index &&
+      billboardTargets.some((target) => target.billboard.userData.project.slug === slug)
+    );
+
+const getPrimaryBillboardForProjectSlug = (slug) =>
+  billboardTargets.find((target) => target.billboard.userData.project.slug === slug)?.billboard ?? null;
+
+const closeFocusedProject = () => {
+  setMobileDetailsOpen(false);
+  selectedBillboard = null;
+  frameSelection(null);
+};
+
+const navigateSelectedProject = (direction) => {
+  if (!selectedBillboard) {
+    return;
+  }
+
+  const projectSlugs = getBrowsableProjectSlugs();
+  const currentSlug = selectedBillboard.userData.project.slug;
+  const currentIndex = projectSlugs.indexOf(currentSlug);
+  if (currentIndex === -1 || !projectSlugs.length) {
+    return;
+  }
+
+  const nextSlug =
+    projectSlugs[(currentIndex + direction + projectSlugs.length) % projectSlugs.length];
+  const nextBillboard = getPrimaryBillboardForProjectSlug(nextSlug);
+  if (!nextBillboard) {
+    return;
+  }
+
+  selectedBillboard = nextBillboard;
+  frameSelection(nextBillboard);
 };
 
 const setBillboardVideoState = (target, active) => {
@@ -2527,6 +2521,8 @@ const frameSelection = (billboard) => {
     header.dataset.dimmed = "false";
     hint.dataset.dimmed = "false";
     document.body.dataset.focused = "false";
+    caseNav?.setAttribute("aria-hidden", "true");
+    setMobileDetailsOpen(false);
     updatePanel(null);
     overlayDirty = true;
     occlusionDirty = true;
@@ -2549,6 +2545,8 @@ const frameSelection = (billboard) => {
   header.dataset.dimmed = "true";
   hint.dataset.dimmed = "true";
   document.body.dataset.focused = "true";
+  caseNav?.setAttribute("aria-hidden", "false");
+  setMobileDetailsOpen(false);
   updatePanel(billboard.userData.project);
   overlayDirty = true;
   occlusionDirty = true;
@@ -2620,6 +2618,29 @@ const updateLabelPosition = () => {
   labelDirty = false;
 };
 
+const getBrowseResponsiveOffsets = () => {
+  const compactMobile = window.innerWidth <= 430 && window.innerHeight >= 700;
+  if (!compactMobile || selectedBillboard || editorState.mode !== "browse") {
+    return {
+      x: 0,
+      y: 0,
+      z: 0,
+      targetX: 0,
+      targetY: 0,
+      targetZ: 0
+    };
+  }
+
+  return {
+    x: 0,
+    y: 1.35,
+    z: 4.2,
+    targetX: 0,
+    targetY: -0.2,
+    targetZ: 0
+  };
+};
+
 const updateOverviewMotion = () => {
   if (selectedBillboard) {
     city.rotation.y += (settledRotationY - city.rotation.y) * 0.08;
@@ -2628,9 +2649,10 @@ const updateOverviewMotion = () => {
     return;
   }
 
-  const lateralOffset = -pointer.x * customization.rotateYStrength * 0.82;
+  const responsiveOffsets = getBrowseResponsiveOffsets();
+  const lateralOffset = -pointer.x * customization.rotateYStrength * 1.02;
   const verticalOffset = pointer.y * customization.rotateXStrength * 1.56;
-  const targetRotationY = -pointer.x * customization.rotateYStrength * 0.108;
+  const targetRotationY = -pointer.x * customization.rotateYStrength * 0.136;
   const targetRotationX = THREE.MathUtils.clamp(
     0.22 - pointer.y * customization.rotateXStrength * 0.042,
     0.14,
@@ -2638,14 +2660,14 @@ const updateOverviewMotion = () => {
   );
 
   cameraState.goalPosition.set(
-    cameraState.basePosition.x + lateralOffset,
-    cameraState.basePosition.y + verticalOffset,
-    cameraState.basePosition.z
+    cameraState.basePosition.x + responsiveOffsets.x + lateralOffset,
+    cameraState.basePosition.y + responsiveOffsets.y + verticalOffset,
+    cameraState.basePosition.z + responsiveOffsets.z
   );
   cameraState.goalTarget.set(
-    cameraState.baseTarget.x + lateralOffset * 0.12,
-    cameraState.baseTarget.y + verticalOffset * 0.34,
-    cameraState.baseTarget.z
+    cameraState.baseTarget.x + responsiveOffsets.targetX + lateralOffset * 0.15,
+    cameraState.baseTarget.y + responsiveOffsets.targetY + verticalOffset * 0.34,
+    cameraState.baseTarget.z + responsiveOffsets.targetZ
   );
 
   city.rotation.y += (targetRotationY - city.rotation.y) * customization.rotationLerp;
@@ -2715,6 +2737,8 @@ const updateRoadLines = (elapsed) => {
 
 const hidePlayerOverlay = () => {
   playerOverlay.setAttribute("aria-hidden", "true");
+  mobileDetailsTrigger?.setAttribute("aria-hidden", "true");
+  mobileDetailsTrigger?.setAttribute("aria-expanded", "false");
   overlayDirty = false;
   if (!playerElement.paused) {
     playerElement.pause();
@@ -2775,16 +2799,45 @@ const updatePlayerOverlay = () => {
     maxY = Math.max(maxY, screenY);
   });
 
-  const nextWidth = Math.max(120, maxX - minX);
-  const nextHeight = Math.max(80, maxY - minY);
-  const centeredLeft = minX;
-  const centeredTop = minY;
+  const projectedWidth = Math.max(120, maxX - minX);
+  const projectedHeight = Math.max(80, maxY - minY);
+  const projectedAspect = projectedWidth / projectedHeight;
+  let nextWidth = projectedWidth * 0.68;
+  let nextHeight = projectedHeight * 0.68;
+
+  if (panel.dataset.open === "true" && window.innerWidth > 820) {
+    const panelRect = panel.getBoundingClientRect();
+    const maxAllowedWidth = Math.max(120, panelRect.left - minX - 40);
+    if (nextWidth > maxAllowedWidth) {
+      nextWidth = maxAllowedWidth;
+      nextHeight = nextWidth / projectedAspect;
+    }
+  }
+
+  const maxHeightInsideBillboard = projectedHeight * 0.76;
+  if (nextHeight > maxHeightInsideBillboard) {
+    nextHeight = maxHeightInsideBillboard;
+    nextWidth = nextHeight * projectedAspect;
+  }
+
+  const centeredLeft = minX + (projectedWidth - nextWidth) / 2;
+  const centeredTop = minY + (projectedHeight - nextHeight) / 2;
   playerOverlay.style.left = `${centeredLeft}px`;
   playerOverlay.style.top = `${centeredTop}px`;
   playerOverlay.style.width = `${nextWidth}px`;
   playerOverlay.style.height = `${nextHeight}px`;
   playerOverlay.setAttribute("aria-hidden", "false");
   overlayDirty = false;
+
+  if (isMobileViewport() && mobileDetailsTrigger) {
+    const triggerLeft = centeredLeft + nextWidth + 10;
+    const triggerTop = centeredTop + Math.max(10, nextHeight * 0.5 - 21);
+    mobileDetailsTrigger.style.left = `${Math.min(triggerLeft, window.innerWidth - 52)}px`;
+    mobileDetailsTrigger.style.top = `${triggerTop}px`;
+    mobileDetailsTrigger.setAttribute("aria-hidden", "false");
+  } else {
+    mobileDetailsTrigger?.setAttribute("aria-hidden", "true");
+  }
 
   const nextSrc = target.billboard.userData.project.videoSrc;
   if (playerElement.dataset.src !== nextSrc) {
@@ -2820,8 +2873,17 @@ const applyCustomization = () => {
     customization.targetZ
   );
   if (!selectedBillboard) {
-    cameraState.goalPosition.copy(cameraState.basePosition);
-    cameraState.goalTarget.copy(cameraState.baseTarget);
+    const responsiveOffsets = getBrowseResponsiveOffsets();
+    cameraState.goalPosition.set(
+      cameraState.basePosition.x + responsiveOffsets.x,
+      cameraState.basePosition.y + responsiveOffsets.y,
+      cameraState.basePosition.z + responsiveOffsets.z
+    );
+    cameraState.goalTarget.set(
+      cameraState.baseTarget.x + responsiveOffsets.targetX,
+      cameraState.baseTarget.y + responsiveOffsets.targetY,
+      cameraState.baseTarget.z + responsiveOffsets.targetZ
+    );
   }
 
   ambientLight.intensity = customization.ambientIntensity;
@@ -2900,20 +2962,62 @@ canvas.addEventListener("click", () => {
     }
     return;
   }
-  const hit = raycaster.intersectObjects(billboardMeshes)[0];
+  const hit = raycaster.intersectObjects(projectHitMeshes)[0];
   if (hit) {
     dismissIntro();
     editorState.previewScreenKey = null;
-    selectedBillboard = hit.object;
-    frameSelection(hit.object);
+    const nextBillboard = resolveProjectBillboard(hit.object);
+    selectedBillboard = nextBillboard;
+    frameSelection(nextBillboard);
+    return;
+  }
+
+  if (selectedBillboard) {
+    closeFocusedProject();
   }
 });
 
 panelClose.addEventListener("click", (event) => {
   event.preventDefault();
   event.stopPropagation();
-  selectedBillboard = null;
-  frameSelection(null);
+  closeFocusedProject();
+});
+
+caseBack?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeFocusedProject();
+});
+
+casePrev?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  navigateSelectedProject(-1);
+});
+
+caseNext?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  navigateSelectedProject(1);
+});
+
+mobileDetailsTrigger?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  mobileDetailsTrigger.setAttribute("aria-expanded", "true");
+  setMobileDetailsOpen(true);
+});
+
+mobileDetailsBack?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  setMobileDetailsOpen(false);
+});
+
+mobileDetailsClose?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeFocusedProject();
 });
 
 aboutTrigger?.addEventListener("click", (event) => {
@@ -2922,8 +3026,7 @@ aboutTrigger?.addEventListener("click", (event) => {
   dismissIntro();
   setCustomizeOpen(false);
   if (!aboutOpen && selectedBillboard) {
-    selectedBillboard = null;
-    frameSelection(null);
+    closeFocusedProject();
   }
   setAboutOpen(!aboutOpen);
 });
@@ -3371,6 +3474,10 @@ toolDistributeRingButton?.addEventListener("click", () => {
 });
 
 window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && mobileDetailsOpen) {
+    setMobileDetailsOpen(false);
+    return;
+  }
   if (event.key === "Escape" && editorState.mode === "edit" && editorState.previewScreenKey) {
     clearEditorPreview();
     return;
@@ -3384,8 +3491,15 @@ window.addEventListener("keydown", (event) => {
     return;
   }
   if (event.key === "Escape" && selectedBillboard) {
-    selectedBillboard = null;
-    frameSelection(null);
+    closeFocusedProject();
+    return;
+  }
+  if (selectedBillboard && event.key === "ArrowLeft") {
+    navigateSelectedProject(-1);
+    return;
+  }
+  if (selectedBillboard && event.key === "ArrowRight") {
+    navigateSelectedProject(1);
   }
 });
 
@@ -3411,7 +3525,9 @@ setAboutOpen(false);
 setCustomizeOpen(false);
 setEditorMode(sceneConfig.camera.mode ?? "browse");
 renderEditorControls();
-restoreIntro();
+window.setTimeout(() => {
+  restoreIntro();
+}, 120);
 
 const animate = () => {
   const elapsed = clock.getElapsedTime();
@@ -3439,8 +3555,8 @@ const animate = () => {
       editorState.mode === "browse" && !selectedBillboard && !aboutOpen;
     if (shouldRaycast && (interactionDirty || cameraMovingBeforeRender || resizeDirty)) {
       raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(billboardMeshes)[0];
-      setHover(hit?.object ?? null);
+      const hit = raycaster.intersectObjects(projectHitMeshes)[0];
+      setHover(resolveProjectBillboard(hit?.object ?? null));
       interactionDirty = false;
     } else if ((!shouldRaycast || editorState.mode === "edit") && hoveredBillboard) {
       setHover(null);

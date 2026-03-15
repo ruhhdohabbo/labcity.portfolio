@@ -12,15 +12,26 @@ export const projects = [
       "O Papai Noel chegou ao Rio e sua primeira parada é no Shopping Rio Sul. Para retratar a magia do natal, usamos IA e diversas ferramentas para tirar essa ideia do papel. A produção combinou imagens de drone, fotografia tradicional e IA generativa, unindo técnicas de edição e VFX para criar uma experiência visual marcante."
   },
   {
-    slug: "hometree-f1-2025",
-    title: "FÓRMULA 1 HOMETREE",
-    client: "HOMETREE",
+    slug: "prio-campos-maduros-2025",
+    title: "CAMPOS MADUROS",
+    client: "PRIO",
     date: "2025",
-    subtitle: "HOMETREE - 2025",
+    subtitle: "PRIO - 2025",
     accent: "#7dff68",
-    videoSrc: "/videos/formula1-hometree.mp4",
+    videoSrc: "/videos/prio-campos-maduros.mp4",
     description:
-      "Qual é a relação entre automação e Fórmula 1? Alta performance, tecnologia e precisão. O objetivo foi conectar a Hometree ao universo da F1, levando a IA generativa ao limite para criar um vídeo hiper-realista que traduzisse essa sinergia entre tecnologia de ponta e ambientes inteligentes."
+      "Placeholder temporário para o case PRIO Campos Maduros. Este texto entra apenas para estruturar o fluxo até a chegada do copy final."
+  },
+  {
+    slug: "prio-esta-em-tudo-2025",
+    title: "ESTÁ EM TUDO",
+    client: "PRIO",
+    date: "2025",
+    subtitle: "PRIO - 2025",
+    accent: "#7dff68",
+    videoSrc: "/videos/prio-esta-em-tudo.mp4",
+    description:
+      "Placeholder temporário para o segundo case da PRIO. O vídeo e o prédio já ficam reservados, aguardando o texto final."
   },
   {
     slug: "elena-tokyo-nights-2025",
@@ -28,11 +39,22 @@ export const projects = [
     client: "ELENA HORTO",
     date: "2025",
     subtitle: "ELENA HORTO - 2025",
-    stats: "215k VIEWS | 7,2 VIEWS",
+    stats: "215K VIEWS | 7,2 VIEWS",
     accent: "#72c6ff",
     videoSrc: "/videos/tokyonights-elena.mp4",
     description:
       "E se um restaurante no Rio de Janeiro virasse cenário de um anime? Para divulgar o Halloween do Elena, no Horto, criamos um vídeo que mistura animação com o ambiente real da casa. O projeto acompanha um personagem explorando o espaço e a decoração temática da noite. Produzido com IA, o vídeo insere o restaurante na narrativa de um jeito criativo e inesperado."
+  },
+  {
+    slug: "elena-natal-2025",
+    title: "ELENA NATAL",
+    client: "ELENA HORTO",
+    date: "2025",
+    subtitle: "ELENA HORTO - 2025",
+    accent: "#72c6ff",
+    videoSrc: "/videos/elena-natal.mp4",
+    description:
+      "Placeholder temporário para o segundo case da Elena Horto. O vídeo já entra na cidade enquanto o texto final ainda está em definição."
   },
   {
     slug: "invincible-live-action-1-2025",

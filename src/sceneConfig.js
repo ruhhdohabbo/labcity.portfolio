@@ -189,7 +189,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       },
       "label": {
         "enabled": true,
-        "text": "PRIO",
+        "text": "Beats by Dre",
         "color": "#ffffff",
         "offsetY": 0.44
       },
@@ -305,7 +305,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       },
       "label": {
         "enabled": true,
-        "text": "Hometree",
+        "text": "PRIO",
         "color": "#ffffff",
         "offsetY": 0.44
       },
@@ -323,7 +323,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-05-screen-01",
           "enabled": true,
-          "projectSlug": "hometree-f1-2025",
+          "projectSlug": "prio-campos-maduros-2025",
           "side": "right",
           "width": 1,
           "height": 2.4,
@@ -363,7 +363,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       },
       "label": {
         "enabled": true,
-        "text": "Prio",
+        "text": "PRIO",
         "color": "#ffffff",
         "offsetY": 0.44
       },
@@ -381,10 +381,10 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-06-screen-01",
           "enabled": true,
-          "projectSlug": "beats-midnight-cut",
+          "projectSlug": "prio-esta-em-tudo-2025",
           "side": "right",
-          "width": 1.1311160893683119,
-          "height": 0.6945280986133097,
+          "width": 1,
+          "height": 2.1,
           "topOffset": 0.28,
           "offsetAlongFace": 0,
           "offsetOutward": 0.03
@@ -439,7 +439,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-07-screen-01",
           "enabled": true,
-          "projectSlug": "elena-tokyo-nights-2025",
+          "projectSlug": "elena-natal-2025",
           "side": "right",
           "width": 1.1311160893683119,
           "height": 0.6945280986133097,
@@ -868,6 +868,20 @@ export const cloneSceneConfig = (config) => clone(config);
 
 export const normalizeSceneConfig = (input, projects) => {
   const defaults = createDefaultSceneConfig(projects);
+  const remapLegacyProjectSlug = (slug) =>
+    slug === "hometree-f1-2025" || slug === "prio-2025"
+      ? "prio-campos-maduros-2025"
+      : slug;
+  const remapBuildingProjectSlug = (buildingId, slug) => {
+    const normalizedSlug = remapLegacyProjectSlug(slug);
+    if (buildingId === "tower-06" && normalizedSlug === "beats-midnight-cut") {
+      return "prio-esta-em-tudo-2025";
+    }
+    if (buildingId === "tower-07" && normalizedSlug === "elena-tokyo-nights-2025") {
+      return "elena-natal-2025";
+    }
+    return normalizedSlug;
+  };
   if (!input || typeof input !== "object") {
     return defaults;
   }
@@ -931,7 +945,16 @@ export const normalizeSceneConfig = (input, projects) => {
           },
           label: {
             enabled: normalizeBool(building.label?.enabled, fallback.label.enabled),
-            text: normalizeString(building.label?.text, fallback.label.text),
+            text: normalizeString(
+              building.id === "tower-05" && building.label?.text === "Hometree"
+                ? "PRIO"
+                : building.id === "tower-06" && building.label?.text?.toUpperCase() === "PRIO"
+                  ? "PRIO"
+                : building.id === "tower-03" && building.label?.text === "PRIO"
+                  ? "Beats by Dre"
+                  : building.label?.text,
+              fallback.label.text
+            ),
             color: normalizeString(building.label?.color, fallback.label.color),
             offsetY: normalizeNumber(building.label?.offsetY, fallback.label.offsetY)
           },
@@ -953,7 +976,7 @@ export const normalizeSceneConfig = (input, projects) => {
                 ),
                 enabled: normalizeBool(screen.enabled, true),
                 projectSlug: normalizeString(
-                  screen.projectSlug,
+                  remapBuildingProjectSlug(building.id, screen.projectSlug),
                   projects[screenIndex % projects.length]?.slug ?? projects[0].slug
                 ),
                 side: normalizeString(screen.side, fallback.screens[screenIndex]?.side ?? "front"),
