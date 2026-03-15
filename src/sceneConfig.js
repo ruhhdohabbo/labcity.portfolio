@@ -131,7 +131,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       },
       "label": {
         "enabled": true,
-        "text": "live action",
+        "text": "FLAMENGO",
         "color": "#ffffff",
         "offsetY": 0.44
       },
@@ -149,7 +149,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-02-screen-01",
           "enabled": true,
-          "projectSlug": "invincible-live-action-1-2025",
+          "projectSlug": "flamengo-telas-anamorficas-2026",
           "side": "right",
           "width": 1.1311160893683119,
           "height": 0.6945280986133097,
@@ -305,7 +305,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       },
       "label": {
         "enabled": true,
-        "text": "PRIO",
+        "text": "HOMETREE",
         "color": "#ffffff",
         "offsetY": 0.44
       },
@@ -323,7 +323,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-05-screen-01",
           "enabled": true,
-          "projectSlug": "prio-campos-maduros-2025",
+          "projectSlug": "hometree-f1-2025",
           "side": "right",
           "width": 1,
           "height": 1.8,
@@ -1043,11 +1043,17 @@ export const cloneSceneConfig = (config) => clone(config);
 export const normalizeSceneConfig = (input, projects) => {
   const defaults = createDefaultSceneConfig(projects);
   const remapLegacyProjectSlug = (slug) =>
-    slug === "hometree-f1-2025" || slug === "prio-2025"
+    slug === "prio-2025"
       ? "prio-campos-maduros-2025"
       : slug;
   const remapBuildingProjectSlug = (buildingId, slug) => {
     const normalizedSlug = remapLegacyProjectSlug(slug);
+    if (buildingId === "tower-02") {
+      return "flamengo-telas-anamorficas-2026";
+    }
+    if (buildingId === "tower-05") {
+      return "hometree-f1-2025";
+    }
     if (buildingId === "tower-06" && normalizedSlug === "beats-midnight-cut") {
       return "prio-esta-em-tudo-2025";
     }
@@ -1120,8 +1126,10 @@ export const normalizeSceneConfig = (input, projects) => {
           label: {
             enabled: normalizeBool(building.label?.enabled, fallback.label.enabled),
             text: normalizeString(
-              building.id === "tower-05" && building.label?.text === "Hometree"
-                ? "PRIO"
+              building.id === "tower-02"
+                ? "FLAMENGO"
+                : building.id === "tower-05"
+                ? "HOMETREE"
                 : building.id === "tower-06" && building.label?.text?.toUpperCase() === "PRIO"
                   ? "PRIO"
                 : building.id === "tower-03" && building.label?.text === "PRIO"

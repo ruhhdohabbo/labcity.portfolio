@@ -736,7 +736,7 @@ p {
 .panel-title {
   margin: 10px 0 10px;
   color: white;
-  font-size: clamp(2rem, 4vw, 3.1rem);
+  font-size: clamp(1.6rem, 3.2vw, 2.48rem);
   line-height: 0.92;
   letter-spacing: -0.06em;
 }
@@ -978,7 +978,7 @@ a:visited {
   }
 
   .panel-title {
-    font-size: clamp(1.5rem, 9vw, 2.2rem);
+    font-size: clamp(1.2rem, 7.2vw, 1.76rem);
   }
 
   .video-player {
