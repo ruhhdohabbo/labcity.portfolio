@@ -127,6 +127,17 @@ const introOverlay = document.querySelector(".intro-overlay");
 const introOverlayText = document.querySelector(".intro-overlay-text");
 const playerOverlay = document.querySelector(".video-player-overlay");
 const playerElement = document.querySelector(".video-player");
+const mobileFocusStory = document.querySelector(".mobile-focus-story");
+const mobileFocusStageInner = document.querySelector(".mobile-focus-stage-inner");
+const mobileFocusDetails = document.querySelector(".mobile-focus-details");
+const mobileFocusMeta = document.querySelector(".mobile-focus-meta");
+const mobileFocusTitle = document.querySelector(".mobile-focus-title");
+const mobileFocusStats = document.querySelector(".mobile-focus-stats");
+const mobileFocusDescription = document.querySelector(".mobile-focus-description");
+const mobileFocusScrollButton = document.querySelector(".mobile-focus-scroll-button");
+const mobileFocusReturnButton = document.querySelector(".mobile-focus-return-button");
+const defaultPlayerOverlayParent = playerOverlay?.parentElement ?? null;
+const defaultPlayerOverlayNextSibling = mobileFocusStory ?? null;
 
 const renderer = new THREE.WebGLRenderer({
   canvas,
@@ -412,7 +423,9 @@ const setAboutOpen = (open) => {
   aboutOpen = open;
   if (open) {
     setMobileDetailsOpen(false);
+    setMobileFocusStoryOpen(false);
   }
+  syncPlayerOverlayMount();
   document.body.dataset.about = open ? "true" : "false";
   if (aboutPanel) {
     aboutPanel.hidden = !open;
@@ -430,6 +443,75 @@ const setMobileDetailsOpen = (open) => {
   if (!open) {
     mobileDetailsTrigger?.setAttribute("aria-expanded", "false");
   }
+};
+
+const setMobileFocusStoryOpen = (open) => {
+  mobileFocusStory?.setAttribute("aria-hidden", open ? "false" : "true");
+  if (mobileFocusStory) {
+    mobileFocusStory.dataset.scrollSection = "stage";
+  }
+  if (!open) {
+    mobileFocusStory?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }
+};
+
+const syncPlayerOverlayMount = () => {
+  if (!playerOverlay || !defaultPlayerOverlayParent) {
+    return;
+  }
+
+  const desiredParent =
+    isMobileFocusStoryActive() && mobileFocusStageInner
+      ? mobileFocusStageInner
+      : defaultPlayerOverlayParent;
+
+  if (playerOverlay.parentElement === desiredParent) {
+    return;
+  }
+
+  if (
+    desiredParent === defaultPlayerOverlayParent &&
+    defaultPlayerOverlayNextSibling?.parentElement === defaultPlayerOverlayParent
+  ) {
+    defaultPlayerOverlayParent.insertBefore(playerOverlay, defaultPlayerOverlayNextSibling);
+    return;
+  }
+
+  desiredParent.appendChild(playerOverlay);
+};
+
+const scrollMobileFocusTo = (targetTop) => {
+  if (!mobileFocusStory) {
+    return;
+  }
+
+  mobileFocusStory.scrollTo({
+    top: Math.max(0, targetTop),
+    left: 0,
+    behavior: "smooth"
+  });
+};
+
+const scrollMobileFocusToDetails = () => {
+  if (!mobileFocusDetails) {
+    return;
+  }
+
+  scrollMobileFocusTo(mobileFocusDetails.offsetTop);
+};
+
+const scrollMobileFocusToStage = () => {
+  scrollMobileFocusTo(0);
+};
+
+const syncMobileFocusScrollState = () => {
+  if (!mobileFocusStory || !mobileFocusDetails) {
+    return;
+  }
+
+  const detailsThreshold = Math.max(40, mobileFocusDetails.offsetTop - 120);
+  mobileFocusStory.dataset.scrollSection =
+    mobileFocusStory.scrollTop >= detailsThreshold ? "details" : "stage";
 };
 
 const setCustomizeOpen = (open) => {
@@ -551,6 +633,15 @@ const loadProjectOverridesFromStorage = () => {
 
 const findProjectBySlug = (slug) => projects.find((project) => project.slug === slug) ?? projects[0];
 const isMobileViewport = () => window.innerWidth <= 820;
+const isMobileFocusStoryActive = () => isMobileViewport() && Boolean(selectedBillboard) && !aboutOpen;
+const getMobileCityViewTuning = () => ({
+  fogNearOffset: 5.2,
+  fogFarOffset: 10.8,
+  cameraYOffset: 1.95,
+  cameraZOffset: 6.7,
+  targetYOffset: 0.55,
+  targetZOffset: 0.35
+});
 const resolveProjectBillboard = (object) => object?.userData?.linkedBillboard ?? object ?? null;
 const getScreenKey = (buildingId, screenId) => `${buildingId}:${screenId}`;
 
@@ -2684,6 +2775,13 @@ const updatePanel = (project) => {
       mobileDetailsStats.hidden = true;
       mobileDetailsDescription.textContent = panelDescription.textContent;
     }
+    if (mobileFocusMeta) {
+      mobileFocusMeta.textContent = panelMeta.textContent;
+      mobileFocusTitle.textContent = panelTitle.textContent;
+      mobileFocusStats.textContent = "";
+      mobileFocusStats.hidden = true;
+      mobileFocusDescription.textContent = panelDescription.textContent;
+    }
     return;
   }
 
@@ -2701,6 +2799,13 @@ const updatePanel = (project) => {
     mobileDetailsStats.textContent = project.stats ?? "";
     mobileDetailsStats.hidden = !project.stats;
     mobileDetailsDescription.textContent = project.description;
+  }
+  if (mobileFocusMeta) {
+    mobileFocusMeta.textContent = panelMeta.textContent;
+    mobileFocusTitle.textContent = panelTitle.textContent;
+    mobileFocusStats.textContent = project.stats ?? "";
+    mobileFocusStats.hidden = !project.stats;
+    mobileFocusDescription.textContent = project.description;
   }
 };
 
@@ -2855,6 +2960,8 @@ const frameSelection = (billboard) => {
     document.body.dataset.focused = "false";
     caseNav?.setAttribute("aria-hidden", "true");
     setMobileDetailsOpen(false);
+    setMobileFocusStoryOpen(false);
+    syncPlayerOverlayMount();
     updatePanel(null);
     overlayDirty = true;
     occlusionDirty = true;
@@ -2879,6 +2986,9 @@ const frameSelection = (billboard) => {
   document.body.dataset.focused = "true";
   caseNav?.setAttribute("aria-hidden", "false");
   setMobileDetailsOpen(false);
+  setMobileFocusStoryOpen(isMobileViewport());
+  mobileFocusStory?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  syncPlayerOverlayMount();
   updatePanel(billboard.userData.project);
   overlayDirty = true;
   occlusionDirty = true;
@@ -2950,8 +3060,8 @@ const updateLabelPosition = () => {
 };
 
 const getBrowseResponsiveOffsets = () => {
-  const compactMobile = window.innerWidth <= 430 && window.innerHeight >= 700;
-  if (!compactMobile || selectedBillboard || editorState.mode !== "browse") {
+  const mobileViewport = isMobileViewport();
+  if (!mobileViewport || selectedBillboard || editorState.mode !== "browse") {
     return {
       x: 0,
       y: 0,
@@ -2962,13 +3072,14 @@ const getBrowseResponsiveOffsets = () => {
     };
   }
 
+  const mobileTuning = getMobileCityViewTuning();
   return {
     x: 0,
-    y: 1.35,
-    z: 4.2,
+    y: mobileTuning.cameraYOffset,
+    z: mobileTuning.cameraZOffset,
     targetX: 0,
-    targetY: -0.2,
-    targetZ: 0
+    targetY: mobileTuning.targetYOffset,
+    targetZ: mobileTuning.targetZOffset
   };
 };
 
@@ -3131,6 +3242,7 @@ const primePlayerAutoplay = (billboard) => {
 };
 
 const hidePlayerOverlay = (resetPlayer = true) => {
+  syncPlayerOverlayMount();
   playerOverlay.setAttribute("aria-hidden", "true");
   mobileDetailsTrigger?.setAttribute("aria-hidden", "true");
   mobileDetailsTrigger?.setAttribute("aria-expanded", "false");
@@ -3157,6 +3269,8 @@ const updatePlayerOverlay = () => {
     return;
   }
 
+  syncPlayerOverlayMount();
+
   if (!selectedBillboard || aboutOpen) {
     hidePlayerOverlay();
     return;
@@ -3168,9 +3282,11 @@ const updatePlayerOverlay = () => {
     return;
   }
 
+  const positionThreshold = isMobileFocusStoryActive() ? 0.55 : 0.34;
+  const targetThreshold = isMobileFocusStoryActive() ? 0.4 : 0.26;
   const cameraReady =
-    cameraState.currentPosition.distanceTo(cameraState.goalPosition) < 0.34 &&
-    cameraState.currentTarget.distanceTo(cameraState.goalTarget) < 0.26;
+    cameraState.currentPosition.distanceTo(cameraState.goalPosition) < positionThreshold &&
+    cameraState.currentTarget.distanceTo(cameraState.goalTarget) < targetThreshold;
 
   if (!cameraReady) {
     hidePlayerOverlay(false);
@@ -3206,16 +3322,27 @@ const updatePlayerOverlay = () => {
   const bleed = Math.min(2, Math.max(1, Math.min(projectedWidth, projectedHeight) * 0.005));
   const nextWidth = Math.min(window.innerWidth - Math.max(0, minX - bleed), projectedWidth + bleed * 2);
   const nextHeight = Math.min(window.innerHeight - Math.max(0, minY - bleed), projectedHeight + bleed * 2);
-  const centeredLeft = Math.max(0, minX - bleed);
-  const centeredTop = Math.max(0, minY - bleed);
-  playerOverlay.style.left = `${centeredLeft}px`;
-  playerOverlay.style.top = `${centeredTop}px`;
+  const viewportLeft = Math.max(0, minX - bleed);
+  const viewportTop = Math.max(0, minY - bleed);
+  let overlayLeft = viewportLeft;
+  let overlayTop = viewportTop;
+
+  if (playerOverlay.parentElement === mobileFocusStageInner) {
+    const mountRect = mobileFocusStageInner.getBoundingClientRect();
+    overlayLeft = viewportLeft - mountRect.left;
+    overlayTop = viewportTop - mountRect.top;
+  }
+
+  playerOverlay.style.left = `${overlayLeft}px`;
+  playerOverlay.style.top = `${overlayTop}px`;
   playerOverlay.style.width = `${nextWidth}px`;
   playerOverlay.style.height = `${nextHeight}px`;
   playerOverlay.setAttribute("aria-hidden", "false");
   overlayDirty = false;
 
-  if (isMobileViewport() && mobileDetailsTrigger) {
+  if (isMobileViewport() && !isMobileFocusStoryActive() && mobileDetailsTrigger) {
+    const centeredLeft = viewportLeft;
+    const centeredTop = viewportTop;
     const triggerLeft = centeredLeft + nextWidth + 10;
     const triggerTop = centeredTop + Math.max(10, nextHeight * 0.5 - 21);
     mobileDetailsTrigger.style.left = `${Math.min(triggerLeft, window.innerWidth - 52)}px`;
@@ -3249,8 +3376,9 @@ const isCameraMoving = () =>
 const applyCustomization = () => {
   scene.background.set(customization.bgColor);
   scene.fog.color.set(customization.fogColor);
-  scene.fog.near = customization.fogNear;
-  scene.fog.far = customization.fogFar;
+  const mobileCityViewTuning = isMobileViewport() ? getMobileCityViewTuning() : null;
+  scene.fog.near = customization.fogNear + (mobileCityViewTuning?.fogNearOffset ?? 0);
+  scene.fog.far = customization.fogFar + (mobileCityViewTuning?.fogFarOffset ?? 0);
 
   camera.fov = customization.cameraFov;
   camera.updateProjectionMatrix();
@@ -3463,6 +3591,22 @@ mobileDetailsClose?.addEventListener("click", (event) => {
   event.stopPropagation();
   closeFocusedProject();
 });
+
+mobileFocusScrollButton?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  scrollMobileFocusToDetails();
+});
+
+mobileFocusReturnButton?.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  scrollMobileFocusToStage();
+});
+
+mobileFocusStory?.addEventListener("scroll", () => {
+  syncMobileFocusScrollState();
+}, { passive: true });
 
 aboutTrigger?.addEventListener("click", (event) => {
   event.preventDefault();
@@ -4006,6 +4150,8 @@ window.addEventListener("resize", () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
   updateQualityMode();
+  setMobileFocusStoryOpen(isMobileFocusStoryActive());
+  syncPlayerOverlayMount();
   interactionDirty = true;
   labelDirty = true;
   overlayDirty = true;
@@ -4059,8 +4205,10 @@ const animate = () => {
       setHover(null);
     }
 
-    cameraState.currentPosition.lerp(cameraState.goalPosition, 0.08);
-    cameraState.currentTarget.lerp(cameraState.goalTarget, 0.1);
+    const positionLerp = isMobileFocusStoryActive() ? 0.16 : 0.08;
+    const targetLerp = isMobileFocusStoryActive() ? 0.18 : 0.1;
+    cameraState.currentPosition.lerp(cameraState.goalPosition, positionLerp);
+    cameraState.currentTarget.lerp(cameraState.goalTarget, targetLerp);
     camera.position.copy(cameraState.currentPosition);
     camera.lookAt(cameraState.currentTarget);
     cameraMovingAfterRender = isCameraMoving();
