@@ -189,7 +189,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       },
       "label": {
         "enabled": true,
-        "text": "Beats by Dre",
+        "text": "HOMETREE",
         "color": "#ffffff",
         "offsetY": 0.44
       },
@@ -207,7 +207,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-03-screen-01",
           "enabled": true,
-          "projectSlug": "beats-midnight-cut",
+          "projectSlug": "hometree-f1-2025",
           "side": "right",
           "width": 0.9,
           "height": 1.6,
@@ -1051,6 +1051,9 @@ export const normalizeSceneConfig = (input, projects) => {
     if (buildingId === "tower-02") {
       return "flamengo-telas-anamorficas-2026";
     }
+    if (buildingId === "tower-03") {
+      return "hometree-f1-2025";
+    }
     if (buildingId === "tower-05") {
       return "prio-campos-maduros-2025";
     }
@@ -1128,6 +1131,8 @@ export const normalizeSceneConfig = (input, projects) => {
             text: normalizeString(
               building.id === "tower-02"
                 ? "FLAMENGO"
+                : building.id === "tower-03"
+                ? "HOMETREE"
                 : building.id === "tower-05"
                 ? "PRIO"
                 : building.id === "tower-06" && building.label?.text?.toUpperCase() === "PRIO"

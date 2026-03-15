@@ -15,7 +15,7 @@ export const projects = [
       "O Papai Noel chegou ao Rio e sua primeira parada é no Shopping Rio Sul. Para retratar a magia do natal, usamos IA e diversas ferramentas para tirar essa ideia do papel. A produção combinou imagens de drone, fotografia tradicional e IA generativa, unindo técnicas de edição e VFX para criar uma experiência visual marcante."
   },
   {
-    slug: "hometree-f1-2025",
+    slug: "Hometree-f1-2025",
     title: "Fórmula 1 Hometree",
     client: "Hometree",
     date: "2025",
@@ -108,14 +108,14 @@ export const projects = [
       "Neste projeto, o desafio foi transformar uma abertura de anime em um vídeo live-action realista. O foco principal foi o timing e a complexidade dos efeitos especiais para acompanhar a velocidade da abertura original. Usamos IA generativa para levar essa estética da animação para o mundo real, mantendo toda a energia e o ritmo da obra."
   },
   {
-    slug: "beats-midnight-cut",
-    title: "Midnight Cut",
-    client: "Beats by Dre",
-    date: "Ago 2025",
-    subtitle: "BEATS BY DRE - 2025",
+    slug: "hometree-f1-2025",
+    title: "Hometree",
+    client: "HOMETREE",
+    date: "2025",
+    subtitle: "HOMETREE - 2025",
     accent: "#ff4fb8",
-    videoSrc: withVideoVersion("/videos/midnight-cut.mp4"),
+    videoSrc: withVideoVersion("/videos/formula1-hometree.mp4"),
     description:
-      "Projeto de performance com camera nervosa, luzes de neon e um desenho sonoro bem marcado. A peca foi editada para gerar impacto imediato e memorabilidade visual."
+      "Qual é a relação entre automação e Fórmula 1? Alta performance, tecnologia e precisão. Nosso objetivo com esse vídeo foi criar uma linguagem visual que conecta a Hometree ao universo da F1, levando a IA generativa ao limite para criar um vídeo hiper-realista que traduzisse essa sinergia entre tecnologia de ponta e ambientes inteligentes."
   }
 ];
