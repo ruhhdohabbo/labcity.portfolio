@@ -30,10 +30,11 @@
               <h1 class="logo-title">
                 <img src="./assets/logo-labcity-copy-02.png" alt="Lab City 3D" class="header-logo" />
               </h1>
-              <div class="header-actions">
-                <button class="small about-trigger" type="button" aria-expanded="false">sobre</button>
-                <button class="small customize-trigger" type="button" aria-expanded="false">customizar</button>
-              </div>
+            </div>
+
+            <div class="header-below-actions">
+              <button class="small about-trigger" type="button" aria-expanded="false">sobre</button>
+              <button class="small customize-trigger" type="button" aria-expanded="false">customizar</button>
             </div>
 
             <aside class="about-panel" aria-hidden="true">
@@ -393,6 +394,10 @@
                 <span>Accent</span>
                 <input class="control-text project-accent-input" type="color" />
               </label>
+              <label class="control-field control-field-span-2">
+                <span>Vídeo / arquivo</span>
+                <input class="control-text project-video-input" type="text" placeholder="/videos/meu-projeto.mp4" />
+              </label>
             </div>
             <label class="control-field">
               <span>Descrição</span>
@@ -412,8 +417,8 @@
           <section class="customize-section">
             <h3>Config</h3>
             <div class="button-row">
-              <button class="control-button config-export" type="button">Exportar</button>
-              <button class="control-button config-import" type="button">Importar</button>
+              <button class="control-button config-export" type="button">Exportar JSON</button>
+              <button class="control-button config-import" type="button">Importar JSON</button>
               <button class="control-button config-reset" type="button">Resetar</button>
             </div>
             <input class="config-import-input" type="file" accept="application/json" hidden />

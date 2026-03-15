@@ -18,20 +18,21 @@ export const projects = [
     date: "2025",
     subtitle: "HOMETREE - 2025",
     accent: "#7dff68",
-    videoSrc: "/videos/formula1-hometree.mp4",
+    videoSrc: "/videos/formula1-hometree.mp4?v=20260315",
     description:
       "Qual é a relação entre automação e Fórmula 1? Alta performance, tecnologia e precisão. Nosso objetivo com esse vídeo foi criar uma linguagem visual que conecta a Hometree ao universo da F1, levando a IA generativa ao limite para criar um vídeo hiper-realista que traduzisse essa sinergia entre tecnologia de ponta e ambientes inteligentes."
   },
   {
     slug: "prio-campos-maduros-2025",
-    title: "CAMPOS MADUROS",
+    title: "CAMPOS MADUROS - PRIO CONFERENCE",
     client: "PRIO",
     date: "2025",
     subtitle: "PRIO - 2025",
+    stats: "",
     accent: "#7dff68",
     videoSrc: "/videos/prio-campos-maduros.mp4",
     description:
-      "Para o PRIO Conference, desenvolvemos dois curtas animados com o objetivo de traduzir assuntos da industria de oleo e gas de forma mais acessivel e descontraida. O desafio foi criar narrativas diferentes dentro de um mesmo projeto, trazendo variedade visual sem perder a unidade entre as entregas. O projeto foi desenvolvido 100% com inteligencia artificial, contando com uma etapa robusta de roteirizacao, conceito e programacao antes do inicio da construcao visual. Quando o assunto e complexo, a criatividade precisa abrir novos caminhos."
+      "Para o PRIO Conference, desenvolvemos dois curtas animados com o objetivo de traduzir assuntos da indústria de óleo e gás de forma mais acessível e descontraída. O desafio foi criar narrativas diferentes dentro de um mesmo projeto, trazendo variedade visual sem perder a unidade entre as entregas. O projeto foi desenvolvido 100% com inteligência artificial, contando com uma etapa robusta de roteirização, conceito e programação antes do início da construção visual. Quando o assunto é complexo, a criatividade precisa abrir novos caminhos."
   },
   {
     slug: "prio-esta-em-tudo-2025",

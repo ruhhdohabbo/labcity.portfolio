@@ -305,7 +305,7 @@ const DEFAULT_SCENE_TEMPLATE = {
       },
       "label": {
         "enabled": true,
-        "text": "HOMETREE",
+        "text": "PRIO",
         "color": "#ffffff",
         "offsetY": 0.44
       },
@@ -323,7 +323,7 @@ const DEFAULT_SCENE_TEMPLATE = {
         {
           "id": "tower-05-screen-01",
           "enabled": true,
-          "projectSlug": "hometree-f1-2025",
+          "projectSlug": "prio-campos-maduros-2025",
           "side": "right",
           "width": 1,
           "height": 1.8,
@@ -1052,7 +1052,7 @@ export const normalizeSceneConfig = (input, projects) => {
       return "flamengo-telas-anamorficas-2026";
     }
     if (buildingId === "tower-05") {
-      return "hometree-f1-2025";
+      return "prio-campos-maduros-2025";
     }
     if (buildingId === "tower-06" && normalizedSlug === "beats-midnight-cut") {
       return "prio-esta-em-tudo-2025";
@@ -1129,7 +1129,7 @@ export const normalizeSceneConfig = (input, projects) => {
               building.id === "tower-02"
                 ? "FLAMENGO"
                 : building.id === "tower-05"
-                ? "HOMETREE"
+                ? "PRIO"
                 : building.id === "tower-06" && building.label?.text?.toUpperCase() === "PRIO"
                   ? "PRIO"
                 : building.id === "tower-03" && building.label?.text === "PRIO"

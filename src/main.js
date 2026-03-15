@@ -108,6 +108,7 @@ const projectDateInput = document.querySelector(".project-date-input");
 const projectSubtitleInput = document.querySelector(".project-subtitle-input");
 const projectStatsInput = document.querySelector(".project-stats-input");
 const projectAccentInput = document.querySelector(".project-accent-input");
+const projectVideoInput = document.querySelector(".project-video-input");
 const projectDescriptionInput = document.querySelector(".project-description-input");
 const toolPreviewScreenButton = document.querySelector(".tool-preview-screen");
 const toolTopScreenButton = document.querySelector(".tool-top-screen");
@@ -251,7 +252,15 @@ let preloadFrameQueueToken = 0;
 const labelTextureCache = new Map();
 const buildingEntriesById = new Map();
 const screenTargetsByKey = new Map();
-const SCREEN_MEDIA_FIT_MODE = "contain";
+const SCREEN_MEDIA_FIT_MODE = "cover";
+const BILLBOARD_PREVIEW_INTERVAL_MS = {
+  high: 800,
+  reduced: 1200
+};
+const BILLBOARD_PREVIEW_STEP_SECONDS = {
+  high: 0.75,
+  reduced: 1
+};
 let hoveredBillboard = null;
 let selectedBillboard = null;
 let settledRotationY = 0;
@@ -269,6 +278,7 @@ let overlayDirty = true;
 let occlusionDirty = true;
 let resizeDirty = true;
 let smokePhase = 0;
+let lastBillboardPreviewTick = 0;
 let mobileDetailsOpen = false;
 let fovDragActive = false;
 let fovDragStartY = 0;
@@ -298,6 +308,7 @@ const PROJECT_EDITABLE_FIELDS = [
   "subtitle",
   "stats",
   "accent",
+  "videoSrc",
   "description"
 ];
 const baseProjects = projects.map((project) => cloneValue(project));
@@ -471,6 +482,7 @@ const loadSceneConfigFromStorage = () => {
     if (Math.abs(nextSceneConfig.camera?.orbitPitch ?? 0) <= 1.2) {
       nextSceneConfig.camera.orbitPitch = defaultSceneConfig.camera.orbitPitch;
     }
+    window.localStorage.setItem(SCENE_CONFIG_STORAGE_KEY, JSON.stringify(nextSceneConfig));
     return nextSceneConfig;
   } catch {
     return cloneSceneConfig(defaultSceneConfig);
@@ -543,6 +555,7 @@ const getScreenKey = (buildingId, screenId) => `${buildingId}:${screenId}`;
 
 projectOverrides = loadProjectOverridesFromStorage();
 applyProjectOverrides(projectOverrides);
+saveProjectOverridesToStorage();
 
 const applySceneConfigToCustomization = () => {
   customization.bgColor = sceneConfig.scene.bgColor;
@@ -1602,7 +1615,9 @@ const createScreenTargetFromConfig = (entry, screenConfig) => {
     return null;
   }
 
-  const project = findProjectBySlug(screenConfig.projectSlug);
+  const project = findProjectBySlug(
+    entry.id === "tower-05" ? "prio-campos-maduros-2025" : screenConfig.projectSlug
+  );
   const asset = makeVideoAsset(project);
   const posterTexture = createPosterTexture(project);
   const posterCanvas = getPosterCanvas(project);
@@ -2308,6 +2323,7 @@ const renderEditorControls = () => {
     projectSubtitleInput,
     projectStatsInput,
     projectAccentInput,
+    projectVideoInput,
     projectDescriptionInput
   ].forEach((element) => {
     if (element) {
@@ -2399,6 +2415,7 @@ const renderEditorControls = () => {
     projectSubtitleInput.value = selectedProject.subtitle ?? "";
     projectStatsInput.value = selectedProject.stats ?? "";
     projectAccentInput.value = selectedProject.accent ?? "#ffffff";
+    projectVideoInput.value = selectedProject.videoSrc ?? "";
     projectDescriptionInput.value = selectedProject.description ?? "";
   } else {
     [
@@ -2407,6 +2424,7 @@ const renderEditorControls = () => {
       projectDateInput,
       projectSubtitleInput,
       projectStatsInput,
+      projectVideoInput,
       projectDescriptionInput
     ].forEach((input) => {
       input.value = "";
@@ -2739,11 +2757,68 @@ const setBillboardVideoState = (target, active) => {
 };
 
 const refreshVideoTargets = () => {
+  const shouldAnimateBillboards =
+    editorState.mode === "browse" &&
+    !selectedBillboard &&
+    !aboutOpen &&
+    !customizeOpen;
+
   billboardTargets.forEach((target) => {
     const active =
-      target.billboard === selectedBillboard ||
-      target.billboard === hoveredBillboard;
+      shouldAnimateBillboards &&
+      target.billboard.visible &&
+      (target.buildingEntry?.enabled ?? true) &&
+      (target.buildingEntry?.currentOpacity ?? 1) > 0.02;
     setBillboardVideoState(target, active);
+  });
+};
+
+const updateBillboardPreviewFrames = (elapsedMs) => {
+  if (
+    editorState.mode !== "browse" ||
+    selectedBillboard ||
+    aboutOpen ||
+    customizeOpen
+  ) {
+    return;
+  }
+
+  const interval = BILLBOARD_PREVIEW_INTERVAL_MS[qualityMode] ?? BILLBOARD_PREVIEW_INTERVAL_MS.high;
+  if (elapsedMs - lastBillboardPreviewTick < interval) {
+    return;
+  }
+  lastBillboardPreviewTick = elapsedMs;
+
+  const processedAssets = new Set();
+  billboardTargets.forEach((target) => {
+    if (!target.isVideoActive || !target.videoAsset) {
+      return;
+    }
+
+    const asset = target.videoAsset;
+    ensureVideoAssetLoaded(asset);
+    if (
+      processedAssets.has(asset) ||
+      !asset.hasLoadedFirstFrame ||
+      asset.pendingSeek
+    ) {
+      return;
+    }
+
+    const duration = asset.video.duration;
+    if (!Number.isFinite(duration) || duration <= 0.15) {
+      return;
+    }
+
+    const step = BILLBOARD_PREVIEW_STEP_SECONDS[qualityMode] ?? BILLBOARD_PREVIEW_STEP_SECONDS.high;
+    let nextTime = asset.video.currentTime + step;
+    if (nextTime >= duration - 0.08) {
+      nextTime = 0.01;
+    }
+
+    asset.pendingSeek = true;
+    processedAssets.add(asset);
+    asset.video.currentTime = nextTime;
   });
 };
 
@@ -2786,7 +2861,7 @@ const frameSelection = (billboard) => {
   billboard.getWorldQuaternion(tempQuaternion);
   normalVector.set(0, 0, 1).applyQuaternion(tempQuaternion).normalize();
 
-  cameraState.goalPosition.copy(tempVector).addScaledVector(normalVector, 3.1);
+  cameraState.goalPosition.copy(tempVector).addScaledVector(normalVector, 5.35);
   cameraState.goalPosition.y = tempVector.y;
   cameraState.goalTarget.copy(tempVector);
 
@@ -2815,15 +2890,14 @@ const updateBillboardFeedback = (elapsed) => {
       billboard.userData.screenId === editorState.selectedScreenId;
     const occlusionFactor = buildingEntry?.currentOpacity ?? 1;
     const hiddenByOcclusion = !isSelected && occlusionFactor < 0.02;
-    const pulse = 1 + Math.sin(elapsed * 2) * 0.02;
     const baseScale = isSelected
-      ? customization.selectedScale
+      ? Math.min(customization.selectedScale, 1.06)
       : isEditorSelected
         ? 1.12
         : isHovered
           ? 1.05
           : 1;
-    const animatedScale = isSelected ? baseScale * pulse : baseScale;
+    const animatedScale = baseScale;
     scaleVector.set(animatedScale, animatedScale, 1);
     billboard.scale.lerp(scaleVector, 0.12);
     halo.scale.lerp(scaleVector, 0.1);
@@ -3026,8 +3100,8 @@ const updatePlayerOverlay = () => {
     return;
   }
 
-  const width = target.billboard.geometry.parameters.width * target.billboard.scale.x;
-  const height = target.billboard.geometry.parameters.height * target.billboard.scale.y;
+  const width = target.config.width;
+  const height = target.config.height;
   const corners = [
     [-width / 2, -height / 2, 0.032],
     [width / 2, -height / 2, 0.032],
@@ -3052,27 +3126,11 @@ const updatePlayerOverlay = () => {
 
   const projectedWidth = Math.max(120, maxX - minX);
   const projectedHeight = Math.max(80, maxY - minY);
-  const projectedAspect = projectedWidth / projectedHeight;
-  let nextWidth = projectedWidth * 0.68;
-  let nextHeight = projectedHeight * 0.68;
-
-  if (panel.dataset.open === "true" && window.innerWidth > 820) {
-    const panelRect = panel.getBoundingClientRect();
-    const maxAllowedWidth = Math.max(120, panelRect.left - minX - 40);
-    if (nextWidth > maxAllowedWidth) {
-      nextWidth = maxAllowedWidth;
-      nextHeight = nextWidth / projectedAspect;
-    }
-  }
-
-  const maxHeightInsideBillboard = projectedHeight * 0.76;
-  if (nextHeight > maxHeightInsideBillboard) {
-    nextHeight = maxHeightInsideBillboard;
-    nextWidth = nextHeight * projectedAspect;
-  }
-
-  const centeredLeft = minX + (projectedWidth - nextWidth) / 2;
-  const centeredTop = minY + (projectedHeight - nextHeight) / 2;
+  const bleed = Math.min(2, Math.max(1, Math.min(projectedWidth, projectedHeight) * 0.005));
+  const nextWidth = Math.min(window.innerWidth - Math.max(0, minX - bleed), projectedWidth + bleed * 2);
+  const nextHeight = Math.min(window.innerHeight - Math.max(0, minY - bleed), projectedHeight + bleed * 2);
+  const centeredLeft = Math.max(0, minX - bleed);
+  const centeredTop = Math.max(0, minY - bleed);
   playerOverlay.style.left = `${centeredLeft}px`;
   playerOverlay.style.top = `${centeredTop}px`;
   playerOverlay.style.width = `${nextWidth}px`;
@@ -3094,8 +3152,10 @@ const updatePlayerOverlay = () => {
   if (playerElement.dataset.src !== nextSrc) {
     playerElement.dataset.src = nextSrc;
     playerElement.src = nextSrc;
+    playerElement.controls = true;
     playerElement.currentTime = 0;
-    playerElement.play().catch(() => {});
+    playerElement.pause();
+    playerElement.load();
   }
 };
 
@@ -3259,6 +3319,22 @@ canvas.addEventListener("click", () => {
   if (selectedBillboard) {
     closeFocusedProject();
   }
+});
+
+playerOverlay?.addEventListener("mousedown", (event) => {
+  event.stopPropagation();
+});
+
+playerOverlay?.addEventListener("click", (event) => {
+  event.stopPropagation();
+});
+
+playerOverlay?.addEventListener("touchstart", (event) => {
+  event.stopPropagation();
+}, { passive: true });
+
+playerElement?.addEventListener("play", () => {
+  playerElement.controls = true;
 });
 
 panelClose.addEventListener("click", (event) => {
@@ -3701,6 +3777,12 @@ projectAccentInput?.addEventListener("input", () => {
   }, { rebuildCity: true });
 });
 
+projectVideoInput?.addEventListener("input", () => {
+  mutateSelectedProject((project) => {
+    project.videoSrc = projectVideoInput.value.trim();
+  }, { rebuildCity: true });
+});
+
 projectDescriptionInput?.addEventListener("input", () => {
   mutateSelectedProject((project) => {
     project.description = projectDescriptionInput.value;
@@ -3901,6 +3983,7 @@ const animate = () => {
   }
 
   updateBillboardFeedback(elapsed);
+  updateBillboardPreviewFrames(elapsed * 1000);
 
   if (hoveredBillboard && (labelDirty || cameraMovingAfterRender || resizeDirty)) {
     updateLabelPosition();
@@ -3920,12 +4003,12 @@ const animate = () => {
     occlusionDirty = false;
   }
   updateBuildingOcclusion();
+  const overlayVisible = playerOverlay?.getAttribute("aria-hidden") === "false";
   if (
-    selectedBillboard ||
     overlayDirty ||
-    playerOverlay?.getAttribute("aria-hidden") === "false" ||
+    resizeDirty ||
     cameraMovingAfterRender ||
-    resizeDirty
+    (selectedBillboard && !overlayVisible)
   ) {
     updatePlayerOverlay();
   }
