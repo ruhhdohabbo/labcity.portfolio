@@ -628,12 +628,25 @@ p {
   backdrop-filter: blur(18px);
   box-shadow: 0 26px 80px rgba(0, 0, 0, 0.26);
   transform: translate3d(120%, -50%, 0);
-  transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease,
+    visibility 0s linear 220ms;
   z-index: 4;
 }
 
 .project-panel[data-open="true"] {
   transform: translate3d(0, -50%, 0);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease,
+    visibility 0s linear 0s;
 }
 
 .case-back {

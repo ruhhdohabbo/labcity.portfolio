@@ -3092,13 +3092,13 @@ const updateOverviewMotion = () => {
   }
 
   const responsiveOffsets = getBrowseResponsiveOffsets();
-  const lateralOffset = -pointer.x * customization.rotateYStrength * 1.02;
-  const verticalOffset = pointer.y * customization.rotateXStrength * 1.56;
-  const targetRotationY = -pointer.x * customization.rotateYStrength * 0.136;
+  const lateralOffset = -pointer.x * customization.rotateYStrength * 0.42;
+  const verticalOffset = pointer.y * customization.rotateXStrength * 0.62;
+  const targetRotationY = -pointer.x * customization.rotateYStrength * 0.052;
   const targetRotationX = THREE.MathUtils.clamp(
-    0.22 - pointer.y * customization.rotateXStrength * 0.042,
-    0.14,
-    0.32
+    0.2 - pointer.y * customization.rotateXStrength * 0.016,
+    0.16,
+    0.26
   );
 
   cameraState.goalPosition.set(
@@ -3108,7 +3108,7 @@ const updateOverviewMotion = () => {
   );
   cameraState.goalTarget.set(
     cameraState.baseTarget.x + responsiveOffsets.targetX + lateralOffset * 0.15,
-    cameraState.baseTarget.y + responsiveOffsets.targetY + verticalOffset * 0.34,
+    cameraState.baseTarget.y + responsiveOffsets.targetY + verticalOffset * 0.16,
     cameraState.baseTarget.z + responsiveOffsets.targetZ
   );
 
