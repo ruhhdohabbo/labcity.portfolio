@@ -284,6 +284,7 @@ let fovDragActive = false;
 let fovDragStartY = 0;
 let fovDragStartFov = 0;
 let suppressCanvasClick = false;
+let pendingPlayerAutoplaySrc = "";
 const introReturnDelay = 10000;
 const defaultSceneConfig = createDefaultSceneConfig(projects);
 let sceneConfig = cloneSceneConfig(defaultSceneConfig);
@@ -2739,6 +2740,7 @@ const navigateSelectedProject = (direction) => {
     return;
   }
 
+  primePlayerAutoplay(nextBillboard);
   selectedBillboard = nextBillboard;
   frameSelection(nextBillboard);
 };
@@ -2832,6 +2834,7 @@ const setHover = (billboard) => {
   overlayDirty = true;
   if (!billboard) {
     label.dataset.visible = "false";
+    pausePlayerWarmup();
     refreshVideoTargets();
     return;
   }
@@ -2839,6 +2842,9 @@ const setHover = (billboard) => {
   clientLabel.textContent = billboard.userData.project.client;
   dateLabel.textContent = billboard.userData.project.date;
   label.dataset.visible = "true";
+  if (!selectedBillboard && !aboutOpen && !customizeOpen) {
+    warmPlayerVideo(billboard, { keepMutedPlayback: true });
+  }
   refreshVideoTargets();
 };
 
@@ -3060,14 +3066,85 @@ const updateRoadLines = (elapsed) => {
   });
 };
 
-const hidePlayerOverlay = () => {
+const syncPlayerSource = (nextSrc, { resetTime = false } = {}) => {
+  if (!playerElement || !nextSrc) {
+    return false;
+  }
+
+  playerElement.preload = "auto";
+  const sourceChanged = playerElement.dataset.src !== nextSrc;
+  if (sourceChanged) {
+    playerElement.dataset.src = nextSrc;
+    playerElement.src = nextSrc;
+    playerElement.controls = true;
+    playerElement.load();
+  }
+
+  if (sourceChanged || resetTime) {
+    playerElement.currentTime = 0;
+  }
+
+  return sourceChanged;
+};
+
+const warmPlayerVideo = (
+  billboard,
+  { resetTime = false, keepMutedPlayback = false } = {}
+) => {
+  if (!billboard?.userData?.project?.videoSrc || !playerElement) {
+    return;
+  }
+
+  syncPlayerSource(billboard.userData.project.videoSrc, { resetTime });
+  playerElement.muted = true;
+
+  if (!keepMutedPlayback) {
+    return;
+  }
+
+  const playbackAttempt = playerElement.play();
+  if (playbackAttempt?.catch) {
+    playbackAttempt.catch(() => {});
+  }
+};
+
+const pausePlayerWarmup = () => {
+  if (!playerElement || selectedBillboard || pendingPlayerAutoplaySrc) {
+    return;
+  }
+
+  if (!playerElement.paused) {
+    playerElement.pause();
+  }
+  playerElement.muted = true;
+};
+
+const primePlayerAutoplay = (billboard) => {
+  if (!billboard?.userData?.project?.videoSrc || !playerElement) {
+    pendingPlayerAutoplaySrc = "";
+    return;
+  }
+
+  const nextSrc = billboard.userData.project.videoSrc;
+  pendingPlayerAutoplaySrc = nextSrc;
+  warmPlayerVideo(billboard, { resetTime: true, keepMutedPlayback: true });
+};
+
+const hidePlayerOverlay = (resetPlayer = true) => {
   playerOverlay.setAttribute("aria-hidden", "true");
   mobileDetailsTrigger?.setAttribute("aria-hidden", "true");
   mobileDetailsTrigger?.setAttribute("aria-expanded", "false");
   overlayDirty = false;
+
+  if (!resetPlayer || !playerElement) {
+    return;
+  }
+
+  pendingPlayerAutoplaySrc = "";
   if (!playerElement.paused) {
     playerElement.pause();
   }
+  playerElement.muted = true;
   if (playerElement.dataset.src) {
     playerElement.removeAttribute("src");
     playerElement.dataset.src = "";
@@ -3096,7 +3173,7 @@ const updatePlayerOverlay = () => {
     cameraState.currentTarget.distanceTo(cameraState.goalTarget) < 0.26;
 
   if (!cameraReady) {
-    hidePlayerOverlay();
+    hidePlayerOverlay(false);
     return;
   }
 
@@ -3149,13 +3226,19 @@ const updatePlayerOverlay = () => {
   }
 
   const nextSrc = target.billboard.userData.project.videoSrc;
-  if (playerElement.dataset.src !== nextSrc) {
-    playerElement.dataset.src = nextSrc;
-    playerElement.src = nextSrc;
-    playerElement.controls = true;
-    playerElement.currentTime = 0;
-    playerElement.pause();
-    playerElement.load();
+  syncPlayerSource(nextSrc);
+
+  if (pendingPlayerAutoplaySrc === nextSrc) {
+    pendingPlayerAutoplaySrc = "";
+    playerElement.muted = false;
+    if (playerElement.paused) {
+      const playbackAttempt = playerElement.play();
+      if (playbackAttempt?.catch) {
+        playbackAttempt.catch(() => {
+          playerElement.muted = true;
+        });
+      }
+    }
   }
 };
 
@@ -3311,6 +3394,7 @@ canvas.addEventListener("click", () => {
     dismissIntro();
     editorState.previewScreenKey = null;
     const nextBillboard = resolveProjectBillboard(hit.object);
+    primePlayerAutoplay(nextBillboard);
     selectedBillboard = nextBillboard;
     frameSelection(nextBillboard);
     return;
